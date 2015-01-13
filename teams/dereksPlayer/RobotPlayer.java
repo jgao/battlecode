@@ -6,10 +6,10 @@ import java.util.*;
 
 public class RobotPlayer {
 	static Random rand;
-	
+
 	public static void run(RobotController rc) {
         BaseBot myself;
-        
+
         if (rc.getType() == RobotType.HQ) {
             myself = new HQ(rc);
         } else if (rc.getType() == RobotType.BEAVER) {
@@ -42,7 +42,7 @@ public class RobotPlayer {
             }
         }
 	}
-	
+
 	public static class BaseBot {
         protected RobotController rc;
         protected MapLocation myHQ, theirHQ, halfway;
@@ -85,7 +85,7 @@ public class RobotPlayer {
             }
             return null;
         }
-        
+
         public Direction getBeaverSpawnDirection() {
         	Direction[] allDirs = Direction.values();
         	for (Direction d : allDirs) {
@@ -105,7 +105,7 @@ public class RobotPlayer {
             }
             return null;
         }
-        
+
         public Direction getRandomDirection() {
     		int firstTry = rc.getID()%9;
     		for (int i = 0; i < 9; i++) {
@@ -148,7 +148,7 @@ public class RobotPlayer {
             	rc.attackLocation(toAttack);
             }
         }
-        
+
         public RobotInfo leastHealthEnemy(RobotInfo[] enemies) throws GameActionException {
         	if (enemies.length == 0) {
                 return null;
@@ -163,14 +163,14 @@ public class RobotPlayer {
             }
             return weakestRobot;
         }
-        
+
         public void distributeSupplies() throws GameActionException {
         	RobotInfo[] nearbyAllies = rc.senseNearbyRobots(rc.getLocation(),GameConstants.SUPPLY_TRANSFER_RADIUS_SQUARED,rc.getTeam());
         	double mySupply = rc.getSupplyLevel();
         	double lowerSupply = mySupply;
         	int transferAmount = 0;
         	MapLocation suppliesToThisLocation = null;
-        	
+
         	for (RobotInfo ri : nearbyAllies) {
         		if (ri.supplyLevel < lowerSupply){
         			lowerSupply = ri.supplyLevel;
@@ -182,12 +182,12 @@ public class RobotPlayer {
         		rc.transferSupplies(transferAmount, suppliesToThisLocation);
         	}
         }
-        
+
         public boolean isSafe(RobotType info, MapLocation myLoc) throws GameActionException {
         	RobotInfo[] enemies = rc.senseNearbyRobots(info.sensorRadiusSquared, this.theirTeam);
         	return (enemies.length==0);
         }
-        
+
         public Direction evadeDirection(RobotType info, MapLocation myLoc) throws GameActionException {
         	RobotInfo[] enemies = rc.senseNearbyRobots(info.sensorRadiusSquared, this.theirTeam);
         	if (enemies.length==0){
@@ -226,7 +226,7 @@ public class RobotPlayer {
         		}
         	}
         }
-        
+
         public Direction backToBase(MapLocation myLoc) throws GameActionException {
         	Direction d = myLoc.directionTo(this.myHQ);
         	if (rc.canMove(d)){
@@ -263,7 +263,7 @@ public class RobotPlayer {
             rc.yield();
         }
     }
-	
+
 	//	MESSAGING PROTOCOL
 	//	Index:		Typical Variable Name:				Purpose:
 	//	0			gameStage							Used by HQ to determine when certain kinds of units/structures should be built
@@ -301,7 +301,7 @@ public class RobotPlayer {
 	//	4001		curTank								Pointer to a tank in the tank-stack.  Is an index (incremented by 2) on the range [2002,2998]
 	//	curTank		curState							Contains the "state" of this tank.  Tank is a state-machine operated by a "switch" statement
 	//	curTank+1	--									(**not yet implemented**)
-	//					
+	//
 
 	//----- HQ -----//
     public static class HQ extends BaseBot {
@@ -309,7 +309,7 @@ public class RobotPlayer {
     	int minerStack = 2000;
     	int soldierStack = 3000;
     	int tankStack = 4000;
-    	
+
         public HQ(RobotController rc) {
             super(rc);
         }
@@ -331,7 +331,8 @@ public class RobotPlayer {
             rc.broadcast(5, 0); //reset attendance
             int numTankFactories = rc.readBroadcast(7);
             rc.broadcast(7, 0); //reset attendance
-            
+
+	// This is a way of checking how many structures are currently in the process of being built
             if (Clock.getRoundNum() < rc.readBroadcast(2)){
             	numMinerFactories += 1;
             }
@@ -346,12 +347,12 @@ public class RobotPlayer {
             }
             int builderBeaver = rc.readBroadcast(50);
             int savedOre = rc.readBroadcast(51);
-            
+
             //Testing
         	rc.setIndicatorString(0, "numSupplyDepots: "+numSupplyDepots);
         	rc.setIndicatorString(1, "Math.round((numBeavers+numMiners+numSoldiers+numTanks)/20): "+Math.round((numBeavers+numMiners+numSoldiers+numTanks)/20));
         	rc.setIndicatorString(2, "savedOre: "+savedOre);
-        	
+
             //Update number of beavers on the map
         	if (numBeavers > 0){
         		int curBeaver = rc.readBroadcast(beaverStack+1);	//pointer
@@ -395,18 +396,18 @@ public class RobotPlayer {
             		rc.broadcast(tankStack+1, tankStack+2); //reset the pointer so all is well in the world
             	}
         	}
-        	
+
         	if (builderBeaver == 0){
             	rc.broadcast(50,beaverStack+2);		//Initialize beaverBuilder (if it hasn't been done yet)
             	builderBeaver = beaverStack+2;
             }
-        	
+
         	//Build structures
 
         	// BUILD SUPPLY DEPOTS
         	if (numSupplyDepots < Math.round((numBeavers+numMiners+numSoldiers+numTanks)/20)){
             	builderBeaver = beaverStack + 2*numBeavers;	//first try the closest beaver!
-            	rc.broadcast(builderBeaver, 5); 	// tell first beaver to go into "build-supply"-mode (3)
+            	rc.broadcast(builderBeaver, 5); 	// tell builder beaver to go into "build-supply"-mode (5)
             	savedOre = RobotType.SUPPLYDEPOT.oreCost;
             	rc.broadcast(51,savedOre);
         	}
@@ -426,7 +427,7 @@ public class RobotPlayer {
                 	rc.broadcast(51,savedOre);
             	}
             }
-            
+
             if (numBeavers > 6 && gameStage == 0 && numMinerFactories ==1 && numMiners > 4) {
             	builderBeaver = beaverStack + 2*numBeavers;	//first try the closest beaver!
             	rc.broadcast(builderBeaver, 3);		// tell another beaver to go into "build-miner"-mode (3)
@@ -447,7 +448,9 @@ public class RobotPlayer {
         		savedOre = RobotType.BARRACKS.oreCost;
             	rc.broadcast(51,savedOre);
         	}
-        	if (numSoldiers+numTanks > 30 || numTanks > 10) {
+
+		//Attack commands
+        	if ((numSoldiers+numTanks > 30 || numTanks > 10) && seige == 0) {
         		rc.broadcast(100, this.theirHQ.x);
         		rc.broadcast(101, this.theirHQ.y);
         		rc.broadcast(10, 1);	// We are now seiging on enemy base
@@ -462,17 +465,17 @@ public class RobotPlayer {
         	if (seige == 1){
         		rc.broadcast(11, seigeTime+1);
         	}
-        	
-            if (numMinerFactories == 3){
-            	gameStage = 1;
-            }
+
+        //     if (numMinerFactories == 3){
+        //     	gameStage = 1;
+        //     }
 //            rc.setIndicatorString(0, "builderBeaver: "+builderBeaver);
-            
+
             //Fire at nearby enemies
             if (rc.isWeaponReady()) {
         		attackLeastHealthEnemy(getEnemiesInAttackingRange(RobotType.TOWER));
 			}
-            
+
             //Build beavers
             if (rc.isCoreReady() && rc.getTeamOre() > (RobotType.BEAVER.oreCost+savedOre) && gameStage == 0 && numBeavers < 10 ){
                 Direction newDir = getBeaverSpawnDirection();
@@ -484,7 +487,7 @@ public class RobotPlayer {
                     rc.broadcast(beaverStack, numBeavers + 1);	//increment numBeavers
                 }
             }
-            
+
             rc.broadcast(0, gameStage);
             rc.yield();
         }
@@ -508,20 +511,20 @@ public class RobotPlayer {
         	RobotInfo[] enemies = rc.senseNearbyRobots(RobotType.BEAVER.sensorRadiusSquared, this.theirTeam);
         	Boolean isSafe = (enemies.length==0);
         	Boolean stateChanged = false;
-        	
+
         	if (!isSafe) {	//There's an enemy robot nearby.  run away!
-        		curState = 2;		
+        		curState = 2;
         		stateChanged=true;
         	}
-        	
+
         	//Make sure an ALIVE unit is a builderBeaver
         	if (builderBeaver > 2*numBeavers + beaverStack) {
         		builderBeaver = 2*numBeavers + beaverStack;	//Reset builder beaver to most recently spawned beaver
         	}
-        	
+
         	//Testing
         	rc.setIndicatorString(0, "STATE: "+curState);
-        	
+
         	switch (curState) {
         	case 0: // Beaver in "mine" mode (default)
         		if (rc.isCoreReady()) {
@@ -553,7 +556,7 @@ public class RobotPlayer {
         			}
         		}
         		break;
-        		
+
         	case 1: // Beaver in "explore" mode (goes to "mine" if lots of ore found, or "run" if enemy found)
         		if (rc.isCoreReady()) {
         			rc.move(getRandomDirection());	// Currently set to move in random direction,  will FIX later
@@ -564,7 +567,7 @@ public class RobotPlayer {
         			}
         		}
         		break;
-        		
+
         	case 2:	// Beaver in "return-to-base" mode
         		Direction backToBase = backToBase(curLoc);
         		int distanceToHQ = curLoc.distanceSquaredTo(this.myHQ);
@@ -578,7 +581,7 @@ public class RobotPlayer {
             		}
         		}
         		break;
-        		
+
         	case 3: // Beaver in "build-miner" mode
         		Direction newDir = getBuildDirection(RobotType.MINERFACTORY);
         		if (newDir != null) {
@@ -603,7 +606,7 @@ public class RobotPlayer {
     				rc.broadcast(50, builderBeaver - 2);
     			}
         		break;
-        		
+
         	case 4: // Beaver in "build-barracks" mode
         		Direction newBarracksDir = getBuildDirection(RobotType.BARRACKS);
         		if (newBarracksDir != null) {
@@ -628,7 +631,7 @@ public class RobotPlayer {
     				rc.broadcast(50, builderBeaver - 2);
     			}
         		break;
-        		
+
         	case 5: // Beaver in "build-supply-depot" mode
         		Direction newSupplyDir = getBuildDirection(RobotType.SUPPLYDEPOT);
         		if (newSupplyDir != null) {
@@ -653,7 +656,7 @@ public class RobotPlayer {
     				rc.broadcast(50, builderBeaver - 2);
     			}
         		break;
-        		
+
         	case 6: // Beaver in "build-tank-factory" mode
         		Direction newTankDir = getBuildDirection(RobotType.TANKFACTORY);
         		if (newTankDir != null) {
@@ -679,9 +682,9 @@ public class RobotPlayer {
     			}
         		break;
         	}
-        	
+
         	//System.out.println("Beaver #"+rc.getID()+" at stack position "+curBeaver);
-        	
+
         	//Take care of stack
         	if (stateChanged) {rc.broadcast(curBeaver,curState);}	//Save changed state, if it was changed
         	rc.broadcast(curBeaver+1,staticTime);					//Save changed time
@@ -693,8 +696,8 @@ public class RobotPlayer {
             rc.yield();
         }
     }
-    
-    //----- Miner -----//    
+
+    //----- Miner -----//
     public static class Miner extends BaseBot {
     	int minerStack = 2000;
         public Miner(RobotController rc) {
@@ -710,12 +713,12 @@ public class RobotPlayer {
         	MapLocation curLoc = rc.getLocation();
         	Boolean isSafe = isSafe(RobotType.MINER, curLoc);
         	Boolean stateChanged = false;
-        	
+
         	if (!isSafe) {	//There's an enemy robot nearby.  run away!
-        		curState = 2;	
+        		curState = 2;
         		stateChanged=true;
         	}
-            
+
         	switch (curState){
         	case 0:	// Miner in "mine" mode
         		if (rc.isCoreReady()) {
@@ -771,7 +774,7 @@ public class RobotPlayer {
         		}
         		break;
         	}
-        	
+
         	//Take care of stack
         	if (stateChanged) {rc.broadcast(curMiner,curState);}	//Save changed state, if it was changed
         	rc.broadcast(curMiner+1,staticTime);					//Save changed time
@@ -810,7 +813,7 @@ public class RobotPlayer {
             rc.yield();
         }
     }
-    
+
     //----- TankFactory -----//
     public static class TankFactory extends BaseBot {
         public TankFactory(RobotController rc) {
@@ -835,8 +838,8 @@ public class RobotPlayer {
             rc.yield();
         }
     }
-    
-    //----- MinerFactory -----//    
+
+    //----- MinerFactory -----//
     public static class MinerFactory extends BaseBot {
         public MinerFactory(RobotController rc) {
             super(rc);
@@ -856,7 +859,7 @@ public class RobotPlayer {
                     rc.broadcast(minerStack, numMiners + 1);	//increment numMiners
                 }
             }
-            
+
             rc.yield();
         }
     }
@@ -864,7 +867,7 @@ public class RobotPlayer {
     //----- Soldier -----//
     public static class Soldier extends BaseBot {
     	int soldierStack = 3000;
-    	
+
         public Soldier(RobotController rc) {
             super(rc);
         }
@@ -879,9 +882,9 @@ public class RobotPlayer {
         	RobotInfo[] enemiesInRange = rc.senseNearbyRobots(RobotType.SOLDIER.attackRadiusSquared, this.theirTeam);
         	Boolean isSafe = (enemies.length==0);
         	Boolean stateChanged = false;
-        	
+
         	if (!isSafe) {	//There's an enemy robot nearby.  do something and attack!
-//        		curState = 2;		
+//        		curState = 2;
 //        		stateChanged=true;
         		if (rc.isWeaponReady() && enemiesInRange.length != 0) {
             		attackLeastHealthEnemy(enemiesInRange);
@@ -892,12 +895,12 @@ public class RobotPlayer {
     				}
     			}
         	}
-        	
+
         	//Testing
         	rc.setIndicatorString(0, "STATE: "+curState);
         	rc.setIndicatorString(1, "Core Delay: "+rc.getCoreDelay());
         	rc.setIndicatorString(2, "Weapon Delay: "+rc.getWeaponDelay());
-        	
+
         	switch (curState) {
         	case 0: // Soldier in "rally" mode (default)
         		if (rc.isCoreReady()) {
@@ -915,13 +918,13 @@ public class RobotPlayer {
         			}
         		}
         		break;
-        		
+
 //        	case 1: // Soldier in "explore" mode (random movement)
 //        		if (rc.isCoreReady()) {
 //        			rc.move(getRandomDirection());	// Currently set to move in random direction,  will FIX later
 //        		}
 //        		break;
-        		
+
 //        	case 2:	// Soldier in "engage-the-enemy" mode
 //        		Direction backToBase = backToBase(curLoc);
 //        		int distanceToHQ = curLoc.distanceSquaredTo(this.myHQ);
@@ -948,11 +951,11 @@ public class RobotPlayer {
             rc.yield();
         }
     }
-    
+
     //----- Tank -----//
     public static class Tank extends BaseBot {
     	int tankStack = 4000;
-    	
+
         public Tank(RobotController rc) {
             super(rc);
         }
@@ -967,9 +970,9 @@ public class RobotPlayer {
         	RobotInfo[] enemiesInRange = rc.senseNearbyRobots(RobotType.TANK.attackRadiusSquared, this.theirTeam);
         	Boolean isSafe = (enemies.length==0);
         	Boolean stateChanged = false;
-        	
+
         	if (!isSafe) {	//There's an enemy robot nearby.  do something and attack!
-//        		curState = 2;		
+//        		curState = 2;
 //        		stateChanged=true;
         		if (rc.isWeaponReady() && enemiesInRange.length != 0) {
             		attackLeastHealthEnemy(enemiesInRange);
@@ -980,12 +983,12 @@ public class RobotPlayer {
     				}
     			}
         	}
-        	
+
         	//Testing
         	rc.setIndicatorString(0, "STATE: "+curState);
         	rc.setIndicatorString(1, "Core Delay: "+rc.getCoreDelay());
         	rc.setIndicatorString(2, "Weapon Delay: "+rc.getWeaponDelay());
-        	
+
         	switch (curState) {
         	case 0: // Tank in "rally" mode (default)
         		if (rc.isCoreReady()) {
@@ -1003,13 +1006,13 @@ public class RobotPlayer {
         			}
         		}
         		break;
-        		
+
         	case 1: // Tank in "explore" mode (random movement)
         		if (rc.isCoreReady()) {
         			rc.move(getRandomDirection());	// Currently set to move in random direction,  will FIX later
         		}
         		break;
-        		
+
         	case 2:	// Tank in "engage-the-enemy" mode
         		Direction backToBase = backToBase(curLoc);
         		int distanceToHQ = curLoc.distanceSquaredTo(this.myHQ);
@@ -1036,7 +1039,7 @@ public class RobotPlayer {
             rc.yield();
         }
     }
-    
+
   //----- Tower -----//
     public static class Tower extends BaseBot {
         public Tower(RobotController rc) {
@@ -1047,11 +1050,11 @@ public class RobotPlayer {
         	if (rc.isWeaponReady()) {
         		attackLeastHealthEnemy(getEnemiesInAttackingRange(RobotType.TOWER));
 			}
-        	
+
             rc.yield();
         }
     }
-    
+
     //----- Supply Depot -----//
     public static class SupplyDepot extends BaseBot {
         public SupplyDepot(RobotController rc) {
