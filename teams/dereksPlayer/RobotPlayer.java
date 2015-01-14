@@ -1,7 +1,5 @@
 package dereksPlayer;
-
 import battlecode.common.*;
-
 import java.util.*;
 
 public class RobotPlayer {
@@ -266,6 +264,18 @@ public class RobotPlayer {
 			public void move(Direction dir) throws GameActionException {
 				if (dir != null && rc.isCoreReady()) {
 					rc.move(dir);
+				}
+			}
+
+			public void spawn(Direction dir, RobotType type) throws GameActionException {
+				if (dir != null && rc.isCoreReady()) {
+					rc.spawn(dir, type);
+				}
+			}
+
+			public void build(Direction dir, RobotType type) throws GameActionException {
+				if (dir != null && rc.isCoreReady()) {
+					rc.build(dir, type);
 				}
 			}
 		}
