@@ -280,44 +280,44 @@ public class RobotPlayer {
 			}
 		}
 
-		//	MESSAGING PROTOCOL
-		//	Index:		Typical Variable Name:				Purpose:
-		//	0			gameStage							Used by HQ to determine when certain kinds of units/structures should be built
-		//	1			numMinerFactories					Number of COMPLETED miner factories on the map
-		//	2			--									This holds the round # when a MINERFACTORY will be completed.  Default value is 0.  numMinerFactories is increased by 1 until building is completed
-		//	3			numBarracks							Number of COMPLETED barracks on the map
-		//	4			--									This holds the round # when a BARRACKS will be completed.  Default value is 0.  numBarracks is increased by 1 until building is completed
-		//	5			numSupplyDepots						Number of COMPLETED supply depots on map
-		//	6			--									This holds the round # when a SUPPLYDEPOT will be completed.  Default value is 0.  numSupplyDepots is increased by 1 until building is completed
-		//	7			numTankFactories					Number of COMPLETED tank factories on map
-		//	8			--									This holds the round # when a TANKFACTORY will be completed.  Default value is 0.  numTankFactories is increased by 1 until building is completed
-		//	9
-		//	10			seige								"1" if currently on offensive, "0" if on the defensive
-		//	11			seigeTime							Counts the number of turns during which the "seige" variable has been equal to "1"
-		//	...			...									...
-		//	100			rallyX								x-coordinate of soldier rally position
-		//	101			rallyY								y-coordinate of soldier rally position
-		//	...			...									...
-		//	1000		numBeavers							First element of the beaver-stack.  Count number of beavers on the map
-		//	1001		curBeaver							Pointer to a beaver in the beaver-stack.  Is an index (incremented by 2) on the range [1002,1998]
-		//	curBeaver	curState							Contains the "state" of this beaver.  Beaver is a state-machine operated by a "switch" statement
-		//	curBeaver+1	staticTime							Saves how much time the beaver has spent stationary.  Used to prevent one beaver from hogging a game-square for too long
-		//	...			...									...
-		//	2000		numMiners							First element of the miner-stack.  Count number of miners on the map
-		//	2001		curMiner							Pointer to a miner in the miner-stack.  Is an index (incremented by 2) on the range [2002,2998]
-		//	curMiner	curState							Contains the "state" of this miner.  Miner is a state-machine operated by a "switch" statement
-		//	curMiner+1	--									(**not yet implemented**)
-		//	...			...									...
-		//	3000		numSoldiers							First element of the soldier-stack.  Count number of soldiers on the map
-		//	3001		curSoldier							Pointer to a soldier in the soldier-stack.  Is an index (incremented by 2) on the range [2002,2998]
-		//	curSoldier	curState							Contains the "state" of this soldier.  Soldier is a state-machine operated by a "switch" statement
-		//	curSoldier+1--									(**not yet implemented**)
-		//	...
-		//	4000		numTanks							First element of the tank-stack.  Count number of tanks on the map
-		//	4001		curTank								Pointer to a tank in the tank-stack.  Is an index (incremented by 2) on the range [2002,2998]
-		//	curTank		curState							Contains the "state" of this tank.  Tank is a state-machine operated by a "switch" statement
-		//	curTank+1	--									(**not yet implemented**)
-		//
+		/*** MESSAGING PROTOCOL ***/
+		/*** Names here correspond to variable names used to store msg values ***/
+		/*** (Obviously use camelCase where appropriate when using msg vars) ***/
+		final static protected int GAME_STAGE = 0; //Used by HQ to determine when certain kinds of units/structures should be built
+		final static protected int NUM_MINER_FACTORIES = 1; //Number of COMPLETED miner factories on the map
+		final static protected int BUILD_TURN_MINER_FACTORY = 2; //Round # when a MINERFACTORY will be completed. +1 until complete
+		final static protected int NUM_BARRACKS = 3; //See above...
+		final static protected int BUILD_TURN_BARRACKS = 4;
+		final static protected int NUM_SUPPLY_DEPOTS = 5;
+		final static protected int BUILD_TURN_SUPPLY_DEPOT = 6;
+		final static protected int NUM_TANK_FACTORIES = 7;
+		final static protected int BUILD_TURN_TANK_FACTORY = 8;
+		final static protected int SEIGE = 10; //"1" if currently on offensive, "0" if on the defensive
+		final static protected int SIEGE_TIME = 11; //Counts the number of turns during which the "seige" variable has been equal to "1"
+		final static protected int RALLY_X = 100;
+		final static protected int RALLY_Y = 101;
+		final static protected int NUM_BEAVERS = 1000; //Number of beavers alive
+		final static protected int CUR_BEAVER = 1001; //Points to beaver in stack. Index (incremented by 2) on the range [1002,1998]
+		final static protected int NUM_MINERS = 2000; //see above...
+		final static protected int CUR_MINER = 2001;
+		final static protected int NUM_SOLDIERS = 3000;
+		final static protected int CUR_SOLDIER = 3001;
+		final static protected int NUM_TANKS = 4000;
+		final static protected int CUR_TANK = 4001;
+
+
+
+		/*** UNIT STACK MECHANICS (e.g. Beavers) ***/
+		// 1000	[10] 		<-- Number of beavers
+		// 1001 [1007] 	<-- Index of 'current' beaver
+		// 1002 [1] 		<-- some state for beaver #1
+		// 1003 [0] 		<-- some subgroup for beaver #1
+		// 1004 [4] 		<-- some state for beaver #2
+		// 1005 [0] 		<-- some subgroup for beaver #2
+		// 1006 [1] 		<-- some state for beaver #3
+		// 1007 [2] 		<-- some subgroup for beaver #3
+		// etc.....
+
 
 		//----- HQ -----//
 		public static class HQ extends BaseBot {
