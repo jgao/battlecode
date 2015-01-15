@@ -278,6 +278,10 @@ public class RobotPlayer {
 					rc.build(dir, type);
 				}
 			}
+
+			// public MapLocation findSubgroupCentroid(int subgroup) {
+			//
+			// }
 		}
 
 		/*** MESSAGING PROTOCOL ***/
@@ -306,6 +310,9 @@ public class RobotPlayer {
 		final static protected int CUR_SOLDIER = 3001;
 		final static protected int NUM_TANKS = 4000;
 		final static protected int CUR_TANK = 4001;
+		final static protected int CENTROID_DIVISOR = 9999; //A counter that's used for computing centroids of subgroups
+		final static protected int NUM_SUBGROUPS = 10000; //Number of subgroups. Beginning of subgroup stack
+		final static protected int CUR_SUBGROUP = 10001;
 
 
 
@@ -347,16 +354,16 @@ public class RobotPlayer {
 
 				// This is a way of checking how many structures are currently in the process of being built
 				if (Clock.getRoundNum() < rc.readBroadcast(BUILD_TURN_MINER_FACTORY)){
-					numMinerFactories += 1;
+					numMinerFactories++;
 				}
 				if (Clock.getRoundNum() < rc.readBroadcast(BUILD_TURN_BARRACKS)){
-					numBarracks += 1;
+					numBarracks++;
 				}
 				if (Clock.getRoundNum() < rc.readBroadcast(BUILD_TURN_SUPPLY_DEPOT)){
-					numSupplyDepots += 1;
+					numSupplyDepots++;
 				}
 				if (Clock.getRoundNum() < rc.readBroadcast(BUILD_TURN_TANK_FACTORY)){
-					numTankFactories += 1;
+					numTankFactories++;
 				}
 				int builderBeaver = rc.readBroadcast(BUILDER_BEAVER);
 				int savedOre = rc.readBroadcast(SAVED_ORE);
@@ -544,7 +551,7 @@ public class RobotPlayer {
 					if (oreHere > 10 && (staticTime < 8)) {	// Lot's of ore here, keep mining!
 					rc.setIndicatorString(1, "Mining "+oreHere+", oh yeah!");
 					rc.mine();
-					staticTime += 1;
+					staticTime++;
 				} else if (oreHere > 0) { // Look for more ore nearby
 					Boolean stickAround = true;
 					for (Direction d : Direction.values()) {
@@ -556,7 +563,7 @@ public class RobotPlayer {
 					}
 					if (stickAround && (staticTime < 8)) { // Couldn't find better ore, so mine here
 					rc.mine();
-					staticTime += 1;
+					staticTime++;
 				}
 			} else {	// Go exploring for minerals!
 				curState = 1;
@@ -736,7 +743,7 @@ public static class Miner extends BaseBot {
 			double oreHere = rc.senseOre(curLoc);
 			if (oreHere > 10 && (staticTime < 8)) {	// Lot's of ore here, keep mining!
 			rc.mine();
-			staticTime += 1;
+			staticTime++;
 		} else if (oreHere > 0) { // Look for more ore if only getting 0.1 ore per mine
 			Boolean stickAround = true;
 			for (Direction d : Direction.values()) {
@@ -748,7 +755,7 @@ public static class Miner extends BaseBot {
 			}
 			if (stickAround && (staticTime < 8)) { // Couldn't find better ore, so mine here
 			rc.mine();
-			staticTime += 1;
+			staticTime++;
 		}
 	} else {	// Go exploring for minerals!
 		curState = 1;
