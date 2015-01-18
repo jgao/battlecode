@@ -905,12 +905,12 @@ public static class Soldier extends BaseBot {
 		//        		stateChanged=true;
 		if (rc.isWeaponReady() && enemiesInRange.length != 0) {
 			attackLeastHealthEnemy(enemiesInRange);
-		} else if (rc.isCoreReady()) {
-			Direction d = getMoveDir(leastHealthEnemy(enemies).location);
-			if (rc.isCoreReady() && d != null){
-				rc.move(d);
-			}
-		}
+		} //else if (rc.isCoreReady()) {
+//			Direction d = getMoveDir(leastHealthEnemy(enemies).location);
+//			if (rc.isCoreReady() && d != null){
+//				rc.move(d);
+//			}
+//		}
 	}
 
 	//Testing
@@ -920,7 +920,7 @@ public static class Soldier extends BaseBot {
 
 	switch (curState) {
 		case 0: // Soldier in "rally" mode (default)
-		if (rc.isCoreReady()) {
+		if (rc.isCoreReady() && (enemiesInRange.length == 0)) {
 			int rallyX = rc.readBroadcast(100);
 			int rallyY = rc.readBroadcast(101);
 			MapLocation rallyPoint;
@@ -935,27 +935,6 @@ public static class Soldier extends BaseBot {
 			}
 		}
 		break;
-
-		//        	case 1: // Soldier in "explore" mode (random movement)
-		//        		if (rc.isCoreReady()) {
-		//        			rc.move(getRandomDirection());	// Currently set to move in random direction,  will FIX later
-		//        		}
-		//        		break;
-
-		//        	case 2:	// Soldier in "engage-the-enemy" mode
-		//        		Direction backToBase = backToBase(curLoc);
-		//        		int distanceToHQ = curLoc.distanceSquaredTo(this.myHQ);
-		//        		rc.setIndicatorString(1, "distanceSquareToHQ: "+distanceToHQ);
-		//        		if (distanceToHQ < 25){
-		//        			curState = 0;
-		//        			stateChanged = true;
-		//        		} else {
-		//        			if (rc.isCoreReady()){
-		//            			rc.move(backToBase);
-		//            			//rc.broadcast
-		//            		}
-		//        		}
-		//        		break;
 	}
 
 	//Take care of stack
@@ -981,33 +960,26 @@ public static class Tank extends BaseBot {
 		int numTanks = rc.readBroadcast(NUM_TANKS);
 		int curTank = rc.readBroadcast(NUM_TANKS+1);
 		int curState = rc.readBroadcast(curTank);		//Get the current state
-		MapLocation curLoc = rc.getLocation();
+		//MapLocation curLoc = rc.getLocation();
 		RobotInfo[] enemies = rc.senseNearbyRobots(RobotType.TANK.sensorRadiusSquared, this.theirTeam);
 		RobotInfo[] enemiesInRange = rc.senseNearbyRobots(RobotType.TANK.attackRadiusSquared, this.theirTeam);
 		Boolean isSafe = (enemies.length==0);
 		Boolean stateChanged = false;
 
 		if (!isSafe) {	//There's an enemy robot nearby.  do something and attack!
-		//        		curState = 2;
-		//        		stateChanged=true;
-		if (rc.isWeaponReady() && enemiesInRange.length != 0) {
-			attackLeastHealthEnemy(enemiesInRange);
-		} else if (rc.isCoreReady()) {
-			Direction d = getMoveDir(leastHealthEnemy(enemies).location);
-			if (rc.isCoreReady() && d != null){
-				rc.move(d);
+			if (rc.isWeaponReady() && enemiesInRange.length != 0) {
+				attackLeastHealthEnemy(enemiesInRange);
 			}
 		}
-	}
 
-	//Testing
-	rc.setIndicatorString(0, "STATE: "+curState);
-	rc.setIndicatorString(1, "Core Delay: "+rc.getCoreDelay());
-	rc.setIndicatorString(2, "Weapon Delay: "+rc.getWeaponDelay());
+		//Testing
+		rc.setIndicatorString(0, "STATE: "+curState);
+		rc.setIndicatorString(1, "Core Delay: "+rc.getCoreDelay());
+		rc.setIndicatorString(2, "Weapon Delay: "+rc.getWeaponDelay());
 
-	switch (curState) {
+		switch (curState) {
 		case 0: // Tank in "rally" mode (default)
-		if (rc.isCoreReady()) {
+		if (rc.isCoreReady() && (enemiesInRange.length == 0)) {
 			int rallyX = rc.readBroadcast(100);
 			int rallyY = rc.readBroadcast(101);
 			MapLocation rallyPoint;
@@ -1022,38 +994,17 @@ public static class Tank extends BaseBot {
 			}
 		}
 		break;
-
-		case 1: // Tank in "explore" mode (random movement)
-		if (rc.isCoreReady()) {
-			rc.move(getRandomDirection());	// Currently set to move in random direction,  will FIX later
 		}
-		break;
 
-		case 2:	// Tank in "engage-the-enemy" mode
-		Direction backToBase = backToBase(curLoc);
-		int distanceToHQ = curLoc.distanceSquaredTo(this.myHQ);
-		rc.setIndicatorString(1, "distanceSquareToHQ: "+distanceToHQ);
-		if (distanceToHQ < 25){
-			curState = 0;
-			stateChanged = true;
+		//Take care of stack
+		if (stateChanged) {rc.broadcast(curTank,curState);}	//Save changed state, if it was changed
+		if (curTank >= NUM_TANKS+2*numTanks) {
+			rc.broadcast(NUM_TANKS+1, NUM_TANKS+2);
 		} else {
-			if (rc.isCoreReady()){
-				rc.move(backToBase);
-				//rc.broadcast
-			}
+			rc.broadcast(NUM_TANKS+1, curTank+2);
 		}
-		break;
+		rc.yield();
 	}
-
-	//Take care of stack
-	if (stateChanged) {rc.broadcast(curTank,curState);}	//Save changed state, if it was changed
-	if (curTank >= NUM_TANKS+2*numTanks) {
-		rc.broadcast(NUM_TANKS+1, NUM_TANKS+2);
-	} else {
-		rc.broadcast(NUM_TANKS+1, curTank+2);
-	}
-	rc.yield();
-}
 }
 
 //----- Tower -----//
