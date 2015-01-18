@@ -634,9 +634,10 @@ public class RobotPlayer {
 				Direction newDir = getBuildDirection(RobotType.MINERFACTORY);
 				if (newDir != null) {
 					if (rc.isCoreReady()){
-						rc.build(newDir, RobotType.MINERFACTORY);
-//						rc.broadcast(SAVED_ORE, rc.readBroadcast(51)-RobotType.MINERFACTORY.oreCost); // stop saving this amount of money
-						rc.broadcast(BUILD_TURN_MINER_FACTORY, Clock.getRoundNum()+RobotType.MINERFACTORY.buildTurns+1);	// report time at which MinerFactory should be completed
+						if (rc.canBuild(newDir, RobotType.MINERFACTORY)){
+							rc.build(newDir, RobotType.MINERFACTORY);
+							rc.broadcast(BUILD_TURN_MINER_FACTORY, Clock.getRoundNum()+RobotType.MINERFACTORY.buildTurns+1);	// report time at which MinerFactory should be completed
+						}
 						curState = 0;		// completed building, change state
 						stateChanged = true;
 					} else {
@@ -659,9 +660,10 @@ public class RobotPlayer {
 				Direction newBarracksDir = getBuildDirection(RobotType.BARRACKS);
 				if (newBarracksDir != null) {
 					if (rc.isCoreReady()){
-						rc.build(newBarracksDir, RobotType.BARRACKS);
-//						rc.broadcast(SAVED_ORE, rc.readBroadcast(51)-RobotType.BARRACKS.oreCost); // stop saving this amount of money
-						rc.broadcast(BUILD_TURN_BARRACKS, Clock.getRoundNum()+RobotType.BARRACKS.buildTurns+1);	// report time at which Barracks should be completed
+						if (rc.canBuild(newBarracksDir, RobotType.BARRACKS)){
+							rc.build(newBarracksDir, RobotType.BARRACKS);
+							rc.broadcast(BUILD_TURN_BARRACKS, Clock.getRoundNum()+RobotType.BARRACKS.buildTurns+1);	// report time at which Barracks should be completed
+						}
 						curState = 0;		// completed building, change state
 						stateChanged = true;
 					} else {
@@ -686,9 +688,10 @@ public class RobotPlayer {
 				Direction newSupplyDir = getBuildDirection(RobotType.SUPPLYDEPOT);
 				if (newSupplyDir != null) {
 					if (rc.isCoreReady()){
-						rc.build(newSupplyDir, RobotType.SUPPLYDEPOT);
-//						rc.broadcast(SAVED_ORE, rc.readBroadcast(51)-RobotType.SUPPLYDEPOT.oreCost); // stop saving this amount of money
-						rc.broadcast(BUILD_TURN_SUPPLY_DEPOT, Clock.getRoundNum()+RobotType.SUPPLYDEPOT.buildTurns+1);	// report time at which SupplyDepot should be completed
+						if (rc.canBuild(newSupplyDir, RobotType.SUPPLYDEPOT)){
+							rc.build(newSupplyDir, RobotType.SUPPLYDEPOT);
+							rc.broadcast(BUILD_TURN_SUPPLY_DEPOT, Clock.getRoundNum()+RobotType.SUPPLYDEPOT.buildTurns+1);	// report time at which SupplyDepot should be completed
+						}
 						curState = 0;		// completed building, change state
 						stateChanged = true;
 					} else {
@@ -711,9 +714,10 @@ public class RobotPlayer {
 				Direction newTankDir = getBuildDirection(RobotType.TANKFACTORY);
 				if (newTankDir != null) {
 					if (rc.isCoreReady()){
-						rc.build(newTankDir, RobotType.TANKFACTORY);
-//						rc.broadcast(SAVED_ORE, rc.readBroadcast(51)-RobotType.TANKFACTORY.oreCost); // stop saving this amount of money
-						rc.broadcast(BUILD_TURN_TANK_FACTORY, Clock.getRoundNum()+RobotType.TANKFACTORY.buildTurns+1);	// report time at which tankFactory should be completed
+						if (rc.canBuild(newTankDir, RobotType.TANKFACTORY)){
+							rc.build(newTankDir, RobotType.TANKFACTORY);
+							rc.broadcast(BUILD_TURN_TANK_FACTORY, Clock.getRoundNum()+RobotType.TANKFACTORY.buildTurns+1);	// report time at which tankFactory should be completed
+						}
 						curState = 0;		// completed building, change state
 						stateChanged = true;
 					} else {
