@@ -97,12 +97,12 @@ public class RobotPlayer {
 		public Direction getBuildDirection(RobotType type) {
 			Direction[] dirs = Direction.values();//getDirectionsToward(this.theirHQ);
 			for (Direction d : dirs) {
-				if (rc.senseTerrainTile(rc.getLocation().add(d)) != TerrainTile.VOID){
+//				if (rc.senseTerrainTile(rc.getLocation().add(d)) != TerrainTile.VOID){
+//					return d;
+//				}
+				if (rc.canMove(d)) {
 					return d;
 				}
-				//					if (rc.canBuild(d, type)) {
-				//						return d;
-				//					}
 			}
 			return null;
 		}
@@ -305,12 +305,16 @@ public class RobotPlayer {
 	final static protected int SAVED_ORE = 51;
 	final static protected int RALLY_X = 100;
 	final static protected int RALLY_Y = 101;
+	final static protected int BEAVER_ATTENDANCE = 999;
 	final static protected int NUM_BEAVERS = 1000; //Number of beavers alive
 	final static protected int CUR_BEAVER = 1001; //Points to beaver in stack. Index (incremented by 2) on the range [1002,1998]
+	final static protected int MINER_ATTENDANCE = 1999;
 	final static protected int NUM_MINERS = 2000; //see above...
 	final static protected int CUR_MINER = 2001;
+	final static protected int SOLDIER_ATTENDANCE = 2999;
 	final static protected int NUM_SOLDIERS = 3000;
 	final static protected int CUR_SOLDIER = 3001;
+	final static protected int TANK_ATTENDANCE = 3999;
 	final static protected int NUM_TANKS = 4000;
 	final static protected int CUR_TANK = 4001;
 	final static protected int CENTROID_DIVISOR = 9999; //A counter that's used for computing centroids of subgroups
@@ -333,10 +337,6 @@ public class RobotPlayer {
 
 	//----- HQ -----//
 	public static class HQ extends BaseBot {
-		int beaverStack = 1000;
-		int minerStack = 2000;
-		int soldierStack = 3000;
-		int tankStack = 4000;
 
 		public HQ(RobotController rc) {
 			super(rc);
@@ -344,130 +344,117 @@ public class RobotPlayer {
 
 		public void execute() throws GameActionException {
 			distributeSupplies();
-			int gameStage = rc.readBroadcast(0);
-			int seige = rc.readBroadcast(10);
-			int seigeTime = rc.readBroadcast(11);
-			int numBeavers = rc.readBroadcast(beaverStack);
-			int numMiners = rc.readBroadcast(minerStack);
-			int numSoldiers = rc.readBroadcast(soldierStack);
-			int numTanks = rc.readBroadcast(tankStack);
-			int numMinerFactories = rc.readBroadcast(1);
-			rc.broadcast(1, 0); //reset attendance
-			int numBarracks = rc.readBroadcast(3);
-			rc.broadcast(3, 0); //reset attendance
-			int numSupplyDepots = rc.readBroadcast(5);
-			rc.broadcast(5, 0); //reset attendance
-			int numTankFactories = rc.readBroadcast(7);
-			rc.broadcast(7, 0); //reset attendance
+			int gameStage = rc.readBroadcast(GAME_STAGE);
+			int seige = rc.readBroadcast(SIEGE);
+			int seigeTime = rc.readBroadcast(SIEGE_TIME);
+			int numBeavers = rc.readBroadcast(BEAVER_ATTENDANCE);
+			rc.broadcast(BEAVER_ATTENDANCE, 0); //reset attendance
+			rc.broadcast(NUM_BEAVERS, numBeavers);
+			int numSoldiers = rc.readBroadcast(SOLDIER_ATTENDANCE);
+			rc.broadcast(SOLDIER_ATTENDANCE, 0); //reset attendance
+			rc.broadcast(NUM_SOLDIERS, numSoldiers);
+			int numTanks = rc.readBroadcast(TANK_ATTENDANCE);
+			rc.broadcast(TANK_ATTENDANCE, 0); //reset attendance
+			rc.broadcast(NUM_TANKS, numTanks);
+			int numMiners = rc.readBroadcast(MINER_ATTENDANCE);
+			rc.broadcast(MINER_ATTENDANCE, 0); //reset attendance
+			rc.broadcast(NUM_MINERS, numMiners);
+			int numMinerFactories = rc.readBroadcast(NUM_MINER_FACTORIES);
+			rc.broadcast(NUM_MINER_FACTORIES, 0); //reset attendance
+			int numBarracks = rc.readBroadcast(NUM_BARRACKS);
+			rc.broadcast(NUM_BARRACKS, 0); //reset attendance
+			int numSupplyDepots = rc.readBroadcast(NUM_SUPPLY_DEPOTS);
+			rc.broadcast(NUM_SUPPLY_DEPOTS, 0); //reset attendance
+			int numTankFactories = rc.readBroadcast(NUM_TANK_FACTORIES);
+			rc.broadcast(NUM_TANK_FACTORIES, 0); //reset attendance
 
 			// This is a way of checking how many structures are currently in the process of being built
-			if (Clock.getRoundNum() < rc.readBroadcast(2)){
+			if (Clock.getRoundNum() < rc.readBroadcast(BUILD_TURN_MINER_FACTORY)){
 				numMinerFactories += 1;
 			}
-			if (Clock.getRoundNum() < rc.readBroadcast(4)){
+			if (Clock.getRoundNum() < rc.readBroadcast(BUILD_TURN_BARRACKS)){
 				numBarracks += 1;
 			}
-			if (Clock.getRoundNum() < rc.readBroadcast(6)){
+			if (Clock.getRoundNum() < rc.readBroadcast(BUILD_TURN_SUPPLY_DEPOT)){
 				numSupplyDepots += 1;
 			}
-			if (Clock.getRoundNum() < rc.readBroadcast(8)){
+			if (Clock.getRoundNum() < rc.readBroadcast(BUILD_TURN_TANK_FACTORY)){
 				numTankFactories += 1;
 			}
-			int builderBeaver = rc.readBroadcast(50);
-			int savedOre = rc.readBroadcast(SAVED_ORE);
-
-			//Testing
-			rc.setIndicatorString(0, "numSupplyDepots: "+numSupplyDepots);
-			rc.setIndicatorString(1, "Math.round((numBeavers+numMiners+numSoldiers+numTanks)/20): "+Math.round((numBeavers+numMiners+numSoldiers+numTanks)/20));
-			rc.setIndicatorString(2, "savedOre: "+savedOre);
-
-			//Update number of beavers on the map
-			if (numBeavers > 0){
-				int curBeaver = rc.readBroadcast(beaverStack+1);	//pointer
-				int numBeaverKilled = (int)(((2*numBeavers+(beaverStack+2))-curBeaver))%(2*numBeavers)/2;
-				if (numBeaverKilled > 0){
-					numBeavers = numBeavers - numBeaverKilled;
-					rc.broadcast(beaverStack, numBeavers); //report the most accurate # of beavers (to knowledge)
-					rc.broadcast(beaverStack+1, beaverStack+2); //reset the pointer so all is well in the world
-				}
-				//        		rc.setIndicatorString(2, "numBeaversKilled: "+numBeaverKilled);
-				//            	rc.setIndicatorString(1, "numBeavers: "+numBeavers);
-				//            	rc.setIndicatorString(0, "curBeaver: "+curBeaver);
-			}
-			//Update number of miners on the map
-			if (numMiners > 0){
-				int curMiner = rc.readBroadcast(minerStack+1);
-				int numMinerKilled = (int)(((2*numMiners+(minerStack+2))-curMiner))%(2*numMiners)/2;
-				if (numMinerKilled > 0){
-					numMiners = numMiners - numMinerKilled;
-					rc.broadcast(minerStack, numMiners); //report the most accurate # of miners (to knowledge)
-					rc.broadcast(minerStack+1, minerStack+2); //reset the pointer so all is well in the world
-				}
-			}
-			//Update number of soldiers on the map
-			if (numSoldiers > 0){
-				int curSoldier = rc.readBroadcast(soldierStack+1);
-				int numSoldiersKilled = (int)(((2*numSoldiers+(soldierStack+2))-curSoldier))%(2*numSoldiers)/2;
-				if (numSoldiersKilled > 0){
-					numSoldiers = numSoldiers - numSoldiersKilled;
-					rc.broadcast(soldierStack, numSoldiers); //report the most accurate # of miners (to knowledge)
-					rc.broadcast(soldierStack+1, soldierStack+2); //reset the pointer so all is well in the world
-				}
-			}
-			//Update number of tanks on the map
-			if (numTanks > 0){
-				int curTank = rc.readBroadcast(tankStack+1);
-				int numTanksKilled = (int)(((2*numTanks+(tankStack+2))-curTank))%(2*numTanks)/2;
-				if (numTanksKilled > 0){
-					numTanks = numTanks - numTanksKilled;
-					rc.broadcast(tankStack, numTanks); //report the most accurate # of miners (to knowledge)
-					rc.broadcast(tankStack+1, tankStack+2); //reset the pointer so all is well in the world
-				}
-			}
+			int builderBeaver = rc.readBroadcast(BUILDER_BEAVER);
 
 			if (builderBeaver == 0){
-				rc.broadcast(50,beaverStack+2);		//Initialize beaverBuilder (if it hasn't been done yet)
-				builderBeaver = beaverStack+2;
+				rc.broadcast(BUILDER_BEAVER,NUM_BEAVERS+2);		//Initialize beaverBuilder (if it hasn't been done yet)
+				builderBeaver = NUM_BEAVERS+2;
 			}
+			
+			///////////////////////////////////////////////////////////////////////////////////////////////////
+			// GAME STAGE 0 //
+			if ((numMinerFactories == 0) && (numBarracks == 0) && (numTankFactories == 0) && (gameStage != 0)){
+				gameStage = 0;
+				rc.broadcast(GAME_STAGE, gameStage);
+			}
+			// GAME STAGE 1 //
+			if ((numMinerFactories == 1) && (numBarracks == 0) && (numTankFactories == 0) && (gameStage != 1)){
+				gameStage = 1;
+				rc.broadcast(GAME_STAGE, gameStage);
+			}
+			// GAME STAGE 2 //
+			if ((numMinerFactories == 1) && (numBarracks == 1) && (numTankFactories == 0) && (numMiners >= 1) && (gameStage != 2)){
+				gameStage = 2;
+				rc.broadcast(GAME_STAGE, gameStage);
+			}
+			// GAME STAGE 3 //
+			if ((numMinerFactories == 1) && (numBarracks == 1) && (numTankFactories == 1) && (numSoldiers >= 1) && (gameStage != 3)){
+				gameStage = 3;
+				rc.broadcast(GAME_STAGE, gameStage);
+			}
+			// GAME STAGE 4 //
+			if ((numMinerFactories == 1) && (numBarracks == 2) && (numTankFactories == 2) && (numTanks >= 1) && (gameStage != 4)){
+				gameStage = 4;
+				rc.broadcast(GAME_STAGE, gameStage);
+			}
+			///////////////////////////////////////////////////////////////////////////////////////////////////
+			//Testing
+			rc.setIndicatorString(0, "numSoldiers: "+numSoldiers);
+			rc.setIndicatorString(1, "numBeavers: "+numBeavers);
+			rc.setIndicatorString(2, "Gamestage: "+gameStage);
+
+			
+			
+			
 
 			//Build structures
 
 			// BUILD SUPPLY DEPOTS
 			if (numSupplyDepots < Math.round((numBeavers+numMiners+numSoldiers+numTanks)/10)){
-				builderBeaver = beaverStack + 2*numBeavers;	//first try the closest beaver!
+				builderBeaver = NUM_BEAVERS + 2*numBeavers;	//first try the closest beaver!
 				rc.broadcast(builderBeaver, 5); 	// tell builder beaver to go into "build-supply"-mode (5)
-				savedOre += RobotType.SUPPLYDEPOT.oreCost;
-				rc.broadcast(SAVED_ORE,savedOre);
+//				savedOre += RobotType.SUPPLYDEPOT.oreCost;
+//				rc.broadcast(SAVED_ORE,savedOre);
 			}
 			// BUILD MINER FACTORIES
-			if (numBeavers >= 1 && numMinerFactories==0) {
-				builderBeaver = beaverStack + 2*numBeavers;	//first try the closest beaver!
-				rc.broadcast(builderBeaver, 3); 	// tell first beaver to go into "build-miner"-mode (3)
-				savedOre = RobotType.MINERFACTORY.oreCost;
-				rc.broadcast(SAVED_ORE,savedOre);
+			if (gameStage == 0) {
+				if (rc.getTeamOre() > RobotType.MINERFACTORY.oreCost){
+					builderBeaver = NUM_BEAVERS + 2*numBeavers;	//first try the closest beaver!
+					rc.broadcast(builderBeaver, 3); 	// tell first beaver to go into "build-miner"-mode (3)
+				}
+			}
+			// BUILD BARRACKS FACTORIES
+			if ((gameStage==1 && numBarracks < 1) || (gameStage==3 && numBarracks < 2)) {
+				if (rc.getTeamOre() > RobotType.BARRACKS.oreCost){
+					builderBeaver = NUM_BEAVERS + 2*numBeavers;	//first try the closest beaver!
+					rc.broadcast(builderBeaver, 4); 	// tell first beaver to go into "build-barracks"-mode (3)
+				}
 			}
 			// BUILD TANK FACTORIES
-			if (numBeavers >= 8 && numTankFactories < 6) {
-				if (rc.checkDependencyProgress(RobotType.BARRACKS) == DependencyProgress.DONE){
-					builderBeaver = beaverStack + 2*numBeavers;	//first try the closest beaver!
+			if ((gameStage==2 && numTankFactories < 1) || (gameStage==3 && numTankFactories < 2)) {
+				if (rc.getTeamOre() > RobotType.TANKFACTORY.oreCost){
+					builderBeaver = NUM_BEAVERS + 2*numBeavers;	//first try the closest beaver!
 					rc.broadcast(builderBeaver, 6); 	// tell first beaver to go into "build-tank-factory"-mode (3)
-					savedOre = RobotType.TANKFACTORY.oreCost + RobotType.TANK.oreCost;	// added tank cost so we would always be saving for building tanks (deprioritizing soldiers)
-					rc.broadcast(SAVED_ORE,savedOre);
 				}
 			}
 
-			if (numMinerFactories == 1 && numBarracks == 0){
-				builderBeaver = beaverStack + 2*numBeavers;	//first try the closest beaver!
-				rc.broadcast(builderBeaver, 4); 	// tell first beaver to go into "build-barracks"-mode (3)
-				savedOre = RobotType.BARRACKS.oreCost;
-				rc.broadcast(SAVED_ORE,savedOre);
-			}
-			if (numBeavers >= 6 && numBarracks < 2){
-				builderBeaver = beaverStack + 2*numBeavers;	//first try the closest beaver!
-				rc.broadcast(builderBeaver, 4); 	// tell first beaver to go into "build-barracks"-mode (3)
-				savedOre = RobotType.BARRACKS.oreCost;
-				rc.broadcast(SAVED_ORE,savedOre);
-			}
 
 			//Attack commands
 			if ((numSoldiers+numTanks > 20) && seige == 0) {
@@ -493,18 +480,20 @@ public class RobotPlayer {
 			}
 
 			//Build beavers
-			if (rc.isCoreReady() && rc.getTeamOre() > (RobotType.BEAVER.oreCost+savedOre) && gameStage == 0 && numBeavers < 10 ){
-				Direction newDir = getBeaverSpawnDirection();
-				if (newDir != null) {
-					rc.spawn(newDir, RobotType.BEAVER);
-					if (rc.readBroadcast(beaverStack+1)==0){
-						rc.broadcast(beaverStack+1, beaverStack+2);	//Initialize the pointer (if it hasn't been done yet)
+			if (rc.isCoreReady() && rc.getTeamOre() > (RobotType.BEAVER.oreCost)){
+				if ((gameStage==0 && numBeavers < 1) || (gameStage == 1 && numBeavers < 4)) {
+					Direction newDir = getBeaverSpawnDirection();
+					if (newDir != null) {
+						rc.spawn(newDir, RobotType.BEAVER);
+						if (rc.readBroadcast(NUM_BEAVERS+1)==0){
+							rc.broadcast(NUM_BEAVERS+1, NUM_BEAVERS+2);	//Initialize the pointer (if it hasn't been done yet)
+						}
+						rc.broadcast(NUM_BEAVERS, numBeavers + 1);	//increment numBeavers
 					}
-					rc.broadcast(beaverStack, numBeavers + 1);	//increment numBeavers
 				}
 			}
-
-			rc.broadcast(0, gameStage);
+			rc.setIndicatorString(1, "numBeavers: "+numBeavers);
+//			rc.broadcast(GAME_STAGE, gameStage);
 			rc.yield();
 		}
 	}
@@ -517,6 +506,7 @@ public class RobotPlayer {
 
 		public void execute() throws GameActionException {
 			distributeSupplies();
+			rc.broadcast(BEAVER_ATTENDANCE, rc.readBroadcast(BEAVER_ATTENDANCE)+1);	//Take attendance
 			int numBeavers = rc.readBroadcast(NUM_BEAVERS);
 			int curBeaver = rc.readBroadcast(NUM_BEAVERS+1);
 			int curState = rc.readBroadcast(curBeaver);		//Get the current state
@@ -538,7 +528,7 @@ public class RobotPlayer {
 			}
 
 			//Testing
-			rc.setIndicatorString(0, "STATE: "+curState);
+			rc.setIndicatorString(0, "curState: "+curState);
 
 			switch (curState) {
 			case 0: // Beaver in "mine" mode (default)
@@ -599,7 +589,7 @@ public class RobotPlayer {
 				if (newDir != null) {
 					if (rc.isCoreReady()){
 						rc.build(newDir, RobotType.MINERFACTORY);
-						rc.broadcast(SAVED_ORE, rc.readBroadcast(51)-RobotType.MINERFACTORY.oreCost); // stop saving this amount of money
+//						rc.broadcast(SAVED_ORE, rc.readBroadcast(51)-RobotType.MINERFACTORY.oreCost); // stop saving this amount of money
 						rc.broadcast(BUILD_TURN_MINER_FACTORY, Clock.getRoundNum()+RobotType.MINERFACTORY.buildTurns+1);	// report time at which MinerFactory should be completed
 						curState = 0;		// completed building, change state
 						stateChanged = true;
@@ -624,7 +614,7 @@ public class RobotPlayer {
 				if (newBarracksDir != null) {
 					if (rc.isCoreReady()){
 						rc.build(newBarracksDir, RobotType.BARRACKS);
-						rc.broadcast(SAVED_ORE, rc.readBroadcast(51)-RobotType.BARRACKS.oreCost); // stop saving this amount of money
+//						rc.broadcast(SAVED_ORE, rc.readBroadcast(51)-RobotType.BARRACKS.oreCost); // stop saving this amount of money
 						rc.broadcast(BUILD_TURN_BARRACKS, Clock.getRoundNum()+RobotType.BARRACKS.buildTurns+1);	// report time at which Barracks should be completed
 						curState = 0;		// completed building, change state
 						stateChanged = true;
@@ -642,6 +632,8 @@ public class RobotPlayer {
 				} else {
 					rc.broadcast(BUILDER_BEAVER, builderBeaver - 2);
 				}
+				rc.setIndicatorString(1, "newBarracksDir: "+newBarracksDir);
+				rc.setIndicatorString(2, "rc.getCoreDelay(): "+rc.getCoreDelay());
 				break;
 
 			case 5: // Beaver in "build-supply-depot" mode
@@ -649,7 +641,7 @@ public class RobotPlayer {
 				if (newSupplyDir != null) {
 					if (rc.isCoreReady()){
 						rc.build(newSupplyDir, RobotType.SUPPLYDEPOT);
-						rc.broadcast(SAVED_ORE, rc.readBroadcast(51)-RobotType.SUPPLYDEPOT.oreCost); // stop saving this amount of money
+//						rc.broadcast(SAVED_ORE, rc.readBroadcast(51)-RobotType.SUPPLYDEPOT.oreCost); // stop saving this amount of money
 						rc.broadcast(BUILD_TURN_SUPPLY_DEPOT, Clock.getRoundNum()+RobotType.SUPPLYDEPOT.buildTurns+1);	// report time at which SupplyDepot should be completed
 						curState = 0;		// completed building, change state
 						stateChanged = true;
@@ -674,7 +666,7 @@ public class RobotPlayer {
 				if (newTankDir != null) {
 					if (rc.isCoreReady()){
 						rc.build(newTankDir, RobotType.TANKFACTORY);
-						rc.broadcast(SAVED_ORE, rc.readBroadcast(51)-RobotType.TANKFACTORY.oreCost); // stop saving this amount of money
+//						rc.broadcast(SAVED_ORE, rc.readBroadcast(51)-RobotType.TANKFACTORY.oreCost); // stop saving this amount of money
 						rc.broadcast(BUILD_TURN_TANK_FACTORY, Clock.getRoundNum()+RobotType.TANKFACTORY.buildTurns+1);	// report time at which tankFactory should be completed
 						curState = 0;		// completed building, change state
 						stateChanged = true;
@@ -717,6 +709,7 @@ public class RobotPlayer {
 
 		public void execute() throws GameActionException {
 			distributeSupplies();
+			rc.broadcast(MINER_ATTENDANCE, rc.readBroadcast(MINER_ATTENDANCE)+1);	//Take attendance
 			int numMiners = rc.readBroadcast(NUM_MINERS);
 			int curMiner = rc.readBroadcast(NUM_MINERS+1);
 			int curState = rc.readBroadcast(curMiner);		//Get the current state
@@ -808,7 +801,7 @@ public class RobotPlayer {
 			rc.broadcast(NUM_BARRACKS, rc.readBroadcast(NUM_BARRACKS)+1);	//Take attendance
 			int numSoldiers = rc.readBroadcast(NUM_SOLDIERS);
 			int numTanks = rc.readBroadcast(NUM_TANKS);
-			if (rc.isCoreReady() && rc.getTeamOre() > (RobotType.SOLDIER.oreCost + rc.readBroadcast(SAVED_ORE)) && numSoldiers < 35){
+			if (rc.isCoreReady() && rc.getTeamOre() > (RobotType.SOLDIER.oreCost) && numSoldiers < 35){
 				Direction newDir = getSpawnDirection(RobotType.SOLDIER);
 				if (newDir != null) {
 					rc.spawn(newDir, RobotType.SOLDIER);
@@ -856,7 +849,7 @@ public class RobotPlayer {
 		public void execute() throws GameActionException {
 			rc.broadcast(NUM_MINER_FACTORIES, rc.readBroadcast(NUM_MINER_FACTORIES)+1);	//Take attendance
 			int numMiners = rc.readBroadcast(NUM_MINERS);
-			if (rc.isCoreReady() && rc.getTeamOre() > (RobotType.MINER.oreCost + rc.readBroadcast(SAVED_ORE)) && numMiners < 20){
+			if (rc.isCoreReady() && rc.getTeamOre() > (RobotType.MINER.oreCost) && numMiners < 20){
 				Direction newDir = getSpawnDirection(RobotType.MINER);
 				if (newDir != null) {
 					rc.spawn(newDir, RobotType.MINER);
@@ -880,6 +873,7 @@ public class RobotPlayer {
 
 		public void execute() throws GameActionException {
 			distributeSupplies();
+			rc.broadcast(SOLDIER_ATTENDANCE, rc.readBroadcast(SOLDIER_ATTENDANCE)+1);	//Take attendance
 			int numSoldiers = rc.readBroadcast(NUM_SOLDIERS);
 			int curSoldier = rc.readBroadcast(NUM_SOLDIERS+1);
 			int curState = rc.readBroadcast(curSoldier);		//Get the current state
@@ -946,6 +940,7 @@ public class RobotPlayer {
 
 		public void execute() throws GameActionException {
 			distributeSupplies();
+			rc.broadcast(TANK_ATTENDANCE, rc.readBroadcast(TANK_ATTENDANCE)+1);	//Take attendance
 			int numTanks = rc.readBroadcast(NUM_TANKS);
 			int curTank = rc.readBroadcast(NUM_TANKS+1);
 			int curState = rc.readBroadcast(curTank);		//Get the current state
