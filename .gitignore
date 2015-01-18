@@ -1,0 +1,14 @@
+bin/
+Uninstaller/
+*.javac
+.DS_Store
+*.jar
+*.txt
+*.xml
+art/
+doc/
+lib/
+maps/
+music/
+sound/
+*.conf
