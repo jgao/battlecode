@@ -28,6 +28,8 @@ public class RobotPlayer {
 			myself = new TankFactory(rc);
 		} else if (rc.getType() == RobotType.TANK) {
 			myself = new Tank(rc);
+		} else if (rc.getType() == RobotType.BASHER) {
+			myself = new Basher(rc);
 		} else {
 			myself = new BaseBot(rc);
 		}
@@ -163,6 +165,44 @@ public class RobotPlayer {
 				}
 			}
 			return weakestRobot;
+		}
+		
+		public RobotInfo closestEnemy(RobotInfo[] enemies, MapLocation curLoc) throws GameActionException {
+			if (enemies.length == 0) {
+				return null;
+			}
+			double minDistance = Double.MAX_VALUE;
+			RobotInfo closestRobot = null;
+			for (RobotInfo info : enemies) {
+				int tempDist = info.location.distanceSquaredTo(curLoc);
+				if (tempDist < minDistance){
+					closestRobot = info;
+					minDistance = tempDist;
+				}
+			}
+			return closestRobot;
+		}
+		
+		public Direction basherMoveDir(Direction dirToEnemy) throws GameActionException {
+			if (rc.canMove(dirToEnemy)){
+				return dirToEnemy;
+			} else if (rc.canMove(dirToEnemy.rotateLeft())) {
+				return dirToEnemy.rotateLeft();
+			} else if (rc.canMove(dirToEnemy.rotateRight())){
+				return dirToEnemy.rotateRight();
+			} else if (rc.canMove(dirToEnemy.rotateLeft().rotateLeft())){
+				return dirToEnemy.rotateLeft().rotateLeft();
+			} else if (rc.canMove(dirToEnemy.rotateRight().rotateRight())){
+				return dirToEnemy.rotateRight().rotateRight();
+			} else if (rc.canMove(dirToEnemy.rotateLeft().rotateLeft().rotateLeft())){
+				return dirToEnemy.rotateLeft().rotateLeft().rotateLeft();
+			} else if (rc.canMove(dirToEnemy.rotateRight().rotateRight().rotateRight())){
+				return dirToEnemy.rotateRight().rotateRight().rotateRight();
+			} else if (rc.canMove(dirToEnemy.rotateRight().rotateRight().rotateRight().rotateRight())){
+				return dirToEnemy.rotateRight().rotateRight().rotateRight().rotateRight();
+			} else {
+				return null;	//no exit in sight, cannot evade enemy
+			}
 		}
 
 		public void distributeSupplies() throws GameActionException {
@@ -317,6 +357,9 @@ public class RobotPlayer {
 	final static protected int TANK_ATTENDANCE = 3999;
 	final static protected int NUM_TANKS = 4000;
 	final static protected int CUR_TANK = 4001;
+	final static protected int BASHER_ATTENDANCE = 4999;
+	final static protected int NUM_BASHERS = 5000;
+	final static protected int CUR_BASHER = 5001;
 	final static protected int CENTROID_DIVISOR = 9999; //A counter that's used for computing centroids of subgroups
 	final static protected int NUM_SUBGROUPS = 10000; //Number of subgroups. Beginning of subgroup stack
 	final static protected int CUR_SUBGROUP = 10001;
@@ -359,6 +402,9 @@ public class RobotPlayer {
 			int numMiners = rc.readBroadcast(MINER_ATTENDANCE);
 			rc.broadcast(MINER_ATTENDANCE, 0); //reset attendance
 			rc.broadcast(NUM_MINERS, numMiners);
+			int numBashers = rc.readBroadcast(BASHER_ATTENDANCE);
+			rc.broadcast(BASHER_ATTENDANCE, 0); //reset attendance
+			rc.broadcast(NUM_BASHERS, numBashers);
 			int numMinerFactories = rc.readBroadcast(NUM_MINER_FACTORIES);
 			rc.broadcast(NUM_MINER_FACTORIES, 0); //reset attendance
 			int numBarracks = rc.readBroadcast(NUM_BARRACKS);
@@ -800,15 +846,30 @@ public class RobotPlayer {
 		public void execute() throws GameActionException {
 			rc.broadcast(NUM_BARRACKS, rc.readBroadcast(NUM_BARRACKS)+1);	//Take attendance
 			int numSoldiers = rc.readBroadcast(NUM_SOLDIERS);
-			int numTanks = rc.readBroadcast(NUM_TANKS);
-			if (rc.isCoreReady() && rc.getTeamOre() > (RobotType.SOLDIER.oreCost) && numSoldiers < 35){
-				Direction newDir = getSpawnDirection(RobotType.SOLDIER);
-				if (newDir != null) {
-					rc.spawn(newDir, RobotType.SOLDIER);
-					if (rc.readBroadcast(NUM_SOLDIERS+1)==0){
-						rc.broadcast(NUM_SOLDIERS+1, NUM_SOLDIERS+2);	//Initialize the pointer (if it hasn't been done yet)
+			int numBashers = rc.readBroadcast(NUM_BASHERS);
+			int gameStage = rc.readBroadcast(GAME_STAGE);
+			if (rc.isCoreReady() && rc.getTeamOre() > (RobotType.SOLDIER.oreCost)){
+				if (gameStage==2 && numSoldiers < 10) {
+					Direction newDir = getSpawnDirection(RobotType.SOLDIER);
+					if (newDir != null) {
+						rc.spawn(newDir, RobotType.SOLDIER);
+						if (rc.readBroadcast(NUM_SOLDIERS+1)==0){
+							rc.broadcast(NUM_SOLDIERS+1, NUM_SOLDIERS+2);	//Initialize the pointer (if it hasn't been done yet)
+						}
+						rc.broadcast(NUM_SOLDIERS, numSoldiers + 1);	//increment numSoldiers
 					}
-					rc.broadcast(NUM_SOLDIERS, numSoldiers + 1);	//increment numSoldiers
+				}
+			}
+			if (rc.isCoreReady() && rc.getTeamOre() > (RobotType.BASHER.oreCost)){
+				if ((gameStage==3 && numBashers < 10) || (gameStage == 4 && numBashers < 20)) {
+					Direction newDir = getSpawnDirection(RobotType.BASHER);
+					if (newDir != null) {
+						rc.spawn(newDir, RobotType.BASHER);
+						if (rc.readBroadcast(NUM_BASHERS+1)==0){
+							rc.broadcast(NUM_BASHERS+1, NUM_BASHERS+2);	//Initialize the pointer (if it hasn't been done yet)
+						}
+						rc.broadcast(NUM_BASHERS, numBashers + 1);	//increment numSoldiers
+					}
 				}
 			}
 
@@ -825,14 +886,17 @@ public class RobotPlayer {
 		public void execute() throws GameActionException {
 			rc.broadcast(NUM_TANK_FACTORIES, rc.readBroadcast(NUM_TANK_FACTORIES)+1);	//Take attendance
 			int numTanks = rc.readBroadcast(NUM_TANKS);
-			if (rc.isCoreReady() && rc.getTeamOre() > (RobotType.TANK.oreCost)){	//prioritize tank building - don't save
-				Direction newDir = getSpawnDirection(RobotType.TANK);
-				if (newDir != null) {
-					rc.spawn(newDir, RobotType.TANK);
-					if (rc.readBroadcast(NUM_TANKS+1)==0){
-						rc.broadcast(NUM_TANKS+1, NUM_TANKS+2);	//Initialize the pointer (if it hasn't been done yet)
+			int gameStage = rc.readBroadcast(GAME_STAGE);
+			if (rc.isCoreReady() && rc.getTeamOre() > (RobotType.TANK.oreCost)){
+				if ((gameStage==3 && numTanks < 6)) {
+					Direction newDir = getSpawnDirection(RobotType.TANK);
+					if (newDir != null) {
+						rc.spawn(newDir, RobotType.TANK);
+						if (rc.readBroadcast(NUM_TANKS+1)==0){
+							rc.broadcast(NUM_TANKS+1, NUM_TANKS+2);	//Initialize the pointer (if it hasn't been done yet)
+						}
+						rc.broadcast(NUM_TANKS, numTanks + 1);	//increment numTanks
 					}
-					rc.broadcast(NUM_TANKS, numTanks + 1);	//increment numTanks
 				}
 			}
 
@@ -848,15 +912,18 @@ public class RobotPlayer {
 
 		public void execute() throws GameActionException {
 			rc.broadcast(NUM_MINER_FACTORIES, rc.readBroadcast(NUM_MINER_FACTORIES)+1);	//Take attendance
+			int gameStage = rc.readBroadcast(GAME_STAGE);
 			int numMiners = rc.readBroadcast(NUM_MINERS);
-			if (rc.isCoreReady() && rc.getTeamOre() > (RobotType.MINER.oreCost) && numMiners < 20){
-				Direction newDir = getSpawnDirection(RobotType.MINER);
-				if (newDir != null) {
-					rc.spawn(newDir, RobotType.MINER);
-					if (rc.readBroadcast(NUM_MINERS+1)==0){
-						rc.broadcast(NUM_MINERS+1, NUM_MINERS+2);	//Initialize the pointer (if it hasn't been done yet)
+			if (rc.isCoreReady() && rc.getTeamOre() > (RobotType.MINER.oreCost)){
+				if ((gameStage==1 && numMiners < 5) || (gameStage == 2 && numMiners < 10)) {
+					Direction newDir = getSpawnDirection(RobotType.MINER);
+					if (newDir != null) {
+						rc.spawn(newDir, RobotType.MINER);
+						if (rc.readBroadcast(NUM_MINERS+1)==0){
+							rc.broadcast(NUM_MINERS+1, NUM_MINERS+2);	//Initialize the pointer (if it hasn't been done yet)
+						}
+						rc.broadcast(NUM_MINERS, numMiners + 1);	//increment numMiners
 					}
-					rc.broadcast(NUM_MINERS, numMiners + 1);	//increment numMiners
 				}
 			}
 
@@ -930,6 +997,74 @@ public class RobotPlayer {
 			rc.yield();
 		}
 	}
+	
+	//----- Basher -----//
+	public static class Basher extends BaseBot {
+
+		public Basher(RobotController rc) {
+			super(rc);
+		}
+
+		public void execute() throws GameActionException {
+			distributeSupplies();
+			rc.broadcast(BASHER_ATTENDANCE, rc.readBroadcast(BASHER_ATTENDANCE)+1);	//Take attendance
+			int numBashers = rc.readBroadcast(NUM_BASHERS);
+			int curBasher = rc.readBroadcast(NUM_BASHERS+1);
+			int curState = rc.readBroadcast(curBasher);		//Get the current state
+			MapLocation curLoc = rc.getLocation();
+			RobotInfo[] enemies = rc.senseNearbyRobots(RobotType.BASHER.sensorRadiusSquared, this.theirTeam);
+			//RobotInfo[] enemiesInRange = rc.senseNearbyRobots(RobotType.BASHER.attackRadiusSquared, this.theirTeam);
+			Boolean isSafe = (enemies.length==0);
+			Boolean stateChanged = false;
+
+			if (!isSafe) {	//There's an enemy robot nearby.  do something and attack!
+					
+				if (rc.isCoreReady()){//Can move, now find a suitable direction to move:
+					RobotInfo closestEnemy = closestEnemy(enemies, curLoc);
+					if (closestEnemy != null) {
+						Direction d = basherMoveDir(curLoc.directionTo(closestEnemy.location));
+						if (d != null) {
+							rc.move(d);
+						}
+					}
+				}
+			}
+
+			//Testing
+			rc.setIndicatorString(0, "STATE: "+curState);
+			rc.setIndicatorString(1, "Core Delay: "+rc.getCoreDelay());
+			rc.setIndicatorString(2, "Weapon Delay: "+rc.getWeaponDelay());
+
+			switch (curState) {
+			case 0: // Basher in "rally" mode (default)
+				if (rc.isCoreReady() && isSafe) {
+					int rallyX = rc.readBroadcast(100);
+					int rallyY = rc.readBroadcast(101);
+					MapLocation rallyPoint;
+					if ((rallyX == 0) && (rallyY == 0)){
+						rallyX = (int)((this.theirHQ.x+2*this.myHQ.x)/3);	// (1/3) the way away from my base (defensively safe, but not too close)
+						rallyY = (int)((this.theirHQ.y+2*this.myHQ.y)/3);
+					}
+					rallyPoint = new MapLocation(rallyX, rallyY);
+					Direction d = getMoveDir(rallyPoint);
+					if (rc.canMove(d) && (d != null)) {
+						rc.move(d);
+					}
+				}
+				break;
+			}
+
+			//Take care of stack
+			if (stateChanged) {rc.broadcast(curBasher,curState);}	//Save changed state, if it was changed
+			if (curBasher >= NUM_BASHERS+2*numBashers) {
+				rc.broadcast(NUM_BASHERS+1, NUM_BASHERS+2);
+			} else {
+				rc.broadcast(NUM_BASHERS+1, curBasher+2);
+			}
+			rc.yield();
+		}
+	}
+
 
 	//----- Tank -----//
 	public static class Tank extends BaseBot {
