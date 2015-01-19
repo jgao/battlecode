@@ -56,6 +56,50 @@ public class RobotPlayer {
 			this.myTeam = rc.getTeam();
 			this.theirTeam = this.myTeam.opponent();
 		}
+		
+		public Direction intToDir(int integer) {
+			if (integer == 0) {
+				return Direction.NORTH;
+			} else if (integer == 1) {
+				return Direction.NORTH_EAST;
+			} else if (integer == 2) {
+				return Direction.EAST;
+			} else if (integer == 3) {
+				return Direction.SOUTH_EAST;
+			} else if (integer == 4) {
+				return Direction.SOUTH;
+			} else if (integer == 5) {
+				return Direction.SOUTH_WEST;
+			} else if (integer == 6) {
+				return Direction.WEST;
+			} else if (integer == 7) {
+				return Direction.NORTH_WEST;
+			} else {
+				return null;
+			}
+		}
+		
+		public int dirToIntInverse(Direction d) {
+			if (d == Direction.NORTH) {
+				return 4;
+			} else if (d == Direction.NORTH_EAST) {
+				return 5;
+			} else if (d == Direction.EAST) {
+				return 6;
+			} else if (d == Direction.SOUTH_EAST) {
+				return 7;
+			} else if (d == Direction.SOUTH) {
+				return 0;
+			} else if (d == Direction.SOUTH_WEST) {
+				return 1;
+			} else if (d == Direction.WEST) {
+				return 2;
+			} else if (d == Direction.NORTH_WEST) {
+				return 3;
+			} else {
+				return 0;//this case should never happen
+			}
+		}
 
 		public Direction[] getDirectionsToward(MapLocation dest) {
 			Direction toDest = rc.getLocation().directionTo(dest);
@@ -70,6 +114,51 @@ public class RobotPlayer {
 			Direction[] dirs = getDirectionsToward(dest);
 			for (Direction d : dirs) {
 				if (rc.canMove(d)) {
+					return d;
+				}
+			}
+			return null;
+		}
+		
+		public Direction getHarassMoveDir(MapLocation dest, MapLocation curLoc) throws GameActionException {
+			Direction toDest = curLoc.directionTo(dest);
+			Direction[] dirs = {toDest,
+					toDest.rotateLeft(), toDest.rotateRight()};
+			for (Direction d : dirs) {
+				//list of towers & HQ locations
+				boolean dangerZone = false;
+				for (MapLocation tower : theirTowers){
+					if ((curLoc.add(d)).distanceSquaredTo(tower) <= RobotType.TOWER.attackRadiusSquared) {
+						dangerZone = true;
+					}
+				}
+				if ((curLoc.add(d)).distanceSquaredTo(theirHQ) <= RobotType.HQ.attackRadiusSquared) {
+					dangerZone = true;
+				}
+				if (rc.canMove(d) && (dangerZone == false)) {
+					return d;
+				}
+			}
+			return null;
+		}
+		
+		public Direction getLeftHarassMoveDir(MapLocation dest, MapLocation curLoc) throws GameActionException {
+			Direction toDest = curLoc.directionTo(dest);
+			Direction[] dirs = {toDest,
+					toDest.rotateLeft(), toDest.rotateLeft().rotateLeft(), 
+					toDest.rotateLeft().rotateLeft().rotateLeft(), toDest.rotateLeft().rotateLeft().rotateLeft().rotateLeft()};
+			for (Direction d : dirs) {
+				//list of towers & HQ locations
+				boolean dangerZone = false;
+				for (MapLocation tower : theirTowers){
+					if ((curLoc.add(d)).distanceSquaredTo(tower) <= RobotType.TOWER.attackRadiusSquared) {
+						dangerZone = true;
+					}
+				}
+				if ((curLoc.add(d)).distanceSquaredTo(theirHQ) <= RobotType.HQ.attackRadiusSquared) {
+					dangerZone = true;
+				}
+				if (rc.canMove(d) && (dangerZone == false)) {
 					return d;
 				}
 			}
@@ -456,8 +545,13 @@ public class RobotPlayer {
 				rc.broadcast(GAME_STAGE, gameStage);
 			}
 			// GAME STAGE 4 //
-			if ((numMinerFactories == 1) && (numBarracks == 2) && (numTankFactories == 2) && (numTanks >= 1) && (gameStage != 4)){
+			if ((numMinerFactories == 1) && (numBarracks == 2) && (numTankFactories == 2) && (numTanks >= 3) && (gameStage != 4)){
 				gameStage = 4;
+				rc.broadcast(GAME_STAGE, gameStage);
+			}
+			// GAME STAGE 5 //
+			if ((numMinerFactories == 1) && (numBarracks == 2) && (numTankFactories == 3) && (numTanks >= 6) && (gameStage != 5)){
+				gameStage = 5;
 				rc.broadcast(GAME_STAGE, gameStage);
 			}
 			///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -473,7 +567,7 @@ public class RobotPlayer {
 			//Build structures
 
 			// BUILD SUPPLY DEPOTS
-			if (numSupplyDepots < Math.round((numBeavers+numMiners+numSoldiers+numTanks)/10)){
+			if ((numSupplyDepots < Math.round((numBeavers+numMiners+numSoldiers+numTanks)/10)) || (rc.getTeamOre() > 1000)){
 				builderBeaver = NUM_BEAVERS + 2*numBeavers;	//first try the closest beaver!
 				rc.broadcast(builderBeaver, 5); 	// tell builder beaver to go into "build-supply"-mode (5)
 //				savedOre += RobotType.SUPPLYDEPOT.oreCost;
@@ -494,7 +588,7 @@ public class RobotPlayer {
 				}
 			}
 			// BUILD TANK FACTORIES
-			if ((gameStage==2 && numTankFactories < 1) || (gameStage==3 && numTankFactories < 2)) {
+			if ((gameStage==2 && numTankFactories < 1) || (gameStage==3 && numTankFactories < 2) || (gameStage==4 && numTankFactories < 3)) {
 				if (rc.getTeamOre() > RobotType.TANKFACTORY.oreCost){
 					builderBeaver = NUM_BEAVERS + 2*numBeavers;	//first try the closest beaver!
 					rc.broadcast(builderBeaver, 6); 	// tell first beaver to go into "build-tank-factory"-mode (3)
@@ -503,26 +597,43 @@ public class RobotPlayer {
 
 
 			//Attack commands
-			if ((numSoldiers+numTanks > 20) && seige == 0) {
-				rc.broadcast(100, this.theirHQ.x);
-				rc.broadcast(101, this.theirHQ.y);
-				rc.broadcast(10, 1);	// We are now seiging on enemy base
+			if ((numSoldiers+numTanks+numBashers > 25) && seige == 0) {
+//				rc.broadcast(RALLY_X, this.theirHQ.x);
+//				rc.broadcast(RALLY_Y, this.theirHQ.y);
+				seige = 1;
+				rc.broadcast(SIEGE, seige);	// We are now sieging on enemy base
 			}
-			if ((seige==1 && numTanks < 4) || (seige==1 && seigeTime >= 100)) {
-				rc.broadcast(100, (int)((this.theirHQ.x+2*this.myHQ.x)/3));
-				rc.broadcast(101, (int)((this.theirHQ.y+2*this.myHQ.y)/3));	// Rally around home base
+			if ((seige==1 && numTanks+numBashers+numSoldiers < 10) || (seige==1 && seigeTime >= 100)) {
+//				rc.broadcast(RALLY_X, (int)((this.theirHQ.x+2*this.myHQ.x)/3));
+//				rc.broadcast(RALLY_Y, (int)((this.theirHQ.y+2*this.myHQ.y)/3));	// Rally in front of home base
 				seige = 0;
-				rc.broadcast(10,seige);
-				rc.broadcast(11, 0);
+				rc.broadcast(SIEGE,seige);
+				rc.broadcast(SIEGE_TIME, 0);
 			}
 			if (seige == 1){
-				rc.broadcast(11, seigeTime+1);
+				rc.broadcast(SIEGE_TIME, seigeTime+1);
 			}
 
 
-			//Fire at nearby enemies
-			if (rc.isWeaponReady()) {
-				attackLeastHealthEnemy(getEnemiesInAttackingRange(RobotType.TOWER));
+			//Fire at nearby enemies & set rally point
+			RobotInfo[] enemies = rc.senseNearbyRobots(RobotType.HQ.sensorRadiusSquared, this.theirTeam);
+			if (enemies.length != 0){
+				RobotInfo closestEnemy = closestEnemy(enemies, myHQ);
+				rc.broadcast(RALLY_X, closestEnemy.location.x);
+				rc.broadcast(RALLY_Y, closestEnemy.location.y);
+				if (rc.isWeaponReady()) {
+					attackLeastHealthEnemy(getEnemiesInAttackingRange(RobotType.HQ));
+				}
+			} else if (seige==0) {
+				rc.broadcast(RALLY_X, (int)((this.theirHQ.x+2*this.myHQ.x)/3));
+				rc.broadcast(RALLY_Y, (int)((this.theirHQ.y+2*this.myHQ.y)/3));	// Rally in front of home base
+			} else {
+				rc.broadcast(RALLY_X, this.theirHQ.x);
+				rc.broadcast(RALLY_Y, this.theirHQ.y);
+			}
+			if (Clock.getRoundNum() >= 1800) {
+				rc.broadcast(RALLY_X, this.theirHQ.x);
+				rc.broadcast(RALLY_Y, this.theirHQ.y);
 			}
 
 			//Build beavers
@@ -574,7 +685,8 @@ public class RobotPlayer {
 			}
 
 			//Testing
-			rc.setIndicatorString(0, "curState: "+curState);
+			rc.setIndicatorString(0, "curBeaver: "+curBeaver);
+			rc.setIndicatorString(1, "numBeavers: "+numBeavers);
 
 			switch (curState) {
 			case 0: // Beaver in "mine" mode (default)
@@ -599,7 +711,10 @@ public class RobotPlayer {
 					} else if (largestOre < 0.01) { // Go exploring for minerals!
 						rc.setIndicatorString(2, "Going exploring");
 						if (rc.isCoreReady()){
-							rc.move(getRandomDirection());
+							Direction d = getRandomDirection();
+							if (d!= null){
+								rc.move(d);
+							}
 						}
 					}
 				}
@@ -607,8 +722,11 @@ public class RobotPlayer {
 
 			case 1: // Beaver in "explore" mode (goes to "mine" if lots of ore found, or "run" if enemy found)
 				if (rc.isCoreReady()) {
-					rc.move(getRandomDirection());	// Currently set to move in random direction,  will FIX later
-					staticTime = 0;
+					Direction d = getRandomDirection();
+					if (d!= null){
+						rc.move(d);
+						staticTime = 0;
+					}
 				}
 				if (rc.senseOre(curLoc) > 10){
 					curState = 0;
@@ -643,8 +761,11 @@ public class RobotPlayer {
 					} else {
 						rc.broadcast(BUILDER_BEAVER, builderBeaver+2); //increment so this will still be builderBeaver next turn (just waiting on core)
 					}
-				} else if (rc.isCoreReady()) {
-					rc.move(getRandomDirection());	// no directions available, but core free to use for a move
+				} else if (rc.isCoreReady()) { // no directions available, but core free to use for a move
+					Direction d = getRandomDirection();
+					if (d!= null){
+						rc.move(d);
+					}
 					curState = 0;
 					stateChanged = true;
 				}
@@ -670,7 +791,10 @@ public class RobotPlayer {
 						rc.broadcast(BUILDER_BEAVER, builderBeaver+2); //increment so this will still be builderBeaver next turn (just waiting on core)
 					}
 				} else if (rc.isCoreReady()) {
-					rc.move(getRandomDirection());	// no directions available, but core free to use for a move
+					Direction d = getRandomDirection();
+					if (d!= null){
+						rc.move(d);
+					}
 					curState = 0;
 					stateChanged = true;
 				}
@@ -698,7 +822,10 @@ public class RobotPlayer {
 						rc.broadcast(BUILDER_BEAVER, builderBeaver+2); //increment so this will still be builderBeaver next turn (just waiting on core)
 					}
 				} else if (rc.isCoreReady()) {
-					rc.move(getRandomDirection());	// no directions available, but core free to use for a move
+					Direction d = getRandomDirection();
+					if (d!= null){
+						rc.move(d);
+					}
 					curState = 0;
 					stateChanged = true;
 				}
@@ -724,7 +851,10 @@ public class RobotPlayer {
 						rc.broadcast(BUILDER_BEAVER, builderBeaver+2); //increment so this will still be builderBeaver next turn (just waiting on core)
 					}
 				} else if (rc.isCoreReady()) {
-					rc.move(getRandomDirection());	// no directions available, but core free to use for a move
+					Direction d = getRandomDirection();
+					if (d!= null){
+						rc.move(d);
+					}
 					curState = 0;
 					stateChanged = true;
 				}
@@ -806,8 +936,11 @@ public class RobotPlayer {
 				break;
 			case 1:	// Miner in "explore" mode
 				if (rc.isCoreReady()) {
-					rc.move(getRandomDirection());	// Currently set to move in random direction,  will FIX later
-					staticTime = 0;
+					Direction d = getRandomDirection();
+					if (d!= null){
+						rc.move(d);
+						staticTime=0;
+					}
 					if (rc.senseOre(curLoc) > 6){
 						curState = 0;
 						stateChanged=true;
@@ -865,7 +998,7 @@ public class RobotPlayer {
 				}
 			}
 			if (rc.isCoreReady() && rc.getTeamOre() > (RobotType.BASHER.oreCost)){
-				if ((gameStage==3 && numBashers < 10) || (gameStage == 4 && numBashers < 20)) {
+				if ((gameStage>=3 && numBashers < 10) || (gameStage >= 4 && numBashers < 15)) {
 					Direction newDir = getSpawnDirection(RobotType.BASHER);
 					if (newDir != null) {
 						rc.spawn(newDir, RobotType.BASHER);
@@ -892,7 +1025,7 @@ public class RobotPlayer {
 			int numTanks = rc.readBroadcast(NUM_TANKS);
 			int gameStage = rc.readBroadcast(GAME_STAGE);
 			if (rc.isCoreReady() && rc.getTeamOre() > (RobotType.TANK.oreCost)){
-				if ((gameStage==3 && numTanks < 6)) {
+				if ((gameStage>=3 && numTanks < 6) || (gameStage >= 4 && numTanks < 25) || (gameStage >= 5 && numTanks < 35)) {
 					Direction newDir = getSpawnDirection(RobotType.TANK);
 					if (newDir != null) {
 						rc.spawn(newDir, RobotType.TANK);
@@ -919,7 +1052,7 @@ public class RobotPlayer {
 			int gameStage = rc.readBroadcast(GAME_STAGE);
 			int numMiners = rc.readBroadcast(NUM_MINERS);
 			if (rc.isCoreReady() && rc.getTeamOre() > (RobotType.MINER.oreCost)){
-				if ((gameStage==1 && numMiners < 5) || (gameStage == 2 && numMiners < 10)) {
+				if ((gameStage==1 && numMiners < 5) || (gameStage == 2 && numMiners < 15) || (gameStage == 4 && numMiners < 20) || (gameStage == 5 && numMiners < 25)) {
 					Direction newDir = getSpawnDirection(RobotType.MINER);
 					if (newDir != null) {
 						rc.spawn(newDir, RobotType.MINER);
@@ -943,7 +1076,13 @@ public class RobotPlayer {
 		}
 
 		public void execute() throws GameActionException {
+			int oldDistanceToEnemy;
+			Direction toDest;
+			Direction prevDir;
+			Direction moveDir;
+			
 			distributeSupplies();
+			rc.setIndicatorString(0, "previous attendance: "+rc.readBroadcast(SOLDIER_ATTENDANCE));
 			rc.broadcast(SOLDIER_ATTENDANCE, rc.readBroadcast(SOLDIER_ATTENDANCE)+1);	//Take attendance
 			int numSoldiers = rc.readBroadcast(NUM_SOLDIERS);
 			int curSoldier = rc.readBroadcast(NUM_SOLDIERS+1);
@@ -954,49 +1093,124 @@ public class RobotPlayer {
 			Boolean isSafe = (enemies.length==0);
 			Boolean stateChanged = false;
 
-			if (!isSafe) {	//There's an enemy robot nearby.  do something and attack!
-				//        		curState = 2;
-				//        		stateChanged=true;
+			if (!isSafe) {	//There's an enemy robot nearby.  Do something and attack!
 				if (rc.isWeaponReady() && enemiesInRange.length != 0) {
 					attackLeastHealthEnemy(enemiesInRange);
-				} //else if (rc.isCoreReady()) {
-				//			Direction d = getMoveDir(leastHealthEnemy(enemies).location);
-				//			if (rc.isCoreReady() && d != null){
-				//				rc.move(d);
-				//			}
-				//		}
+				}
 			}
 
 			//Testing
-			rc.setIndicatorString(0, "STATE: "+curState);
-			rc.setIndicatorString(1, "Core Delay: "+rc.getCoreDelay());
-			rc.setIndicatorString(2, "Weapon Delay: "+rc.getWeaponDelay());
+			rc.setIndicatorString(0, "curLoc.directionTo(theirHQ): "+curLoc.directionTo(theirHQ));
 
 			switch (curState) {
-			case 0: // Soldier in "rally" mode (default)
+			case 0: // Soldier in "HARASS" mode (default)
 				if (rc.isCoreReady() && (enemiesInRange.length == 0)) {
-					int rallyX = rc.readBroadcast(100);
-					int rallyY = rc.readBroadcast(101);
-					MapLocation rallyPoint;
-					if ((rallyX == 0) && (rallyY == 0)){
-						rallyX = (int)((this.theirHQ.x+2*this.myHQ.x)/3);	// (1/3) the way away from my base (defensively safe, but not too close)
-						rallyY = (int)((this.theirHQ.y+2*this.myHQ.y)/3);
-					}
-					rallyPoint = new MapLocation(rallyX, rallyY);
-					Direction d = getMoveDir(rallyPoint);
-					if (rc.canMove(d) && (d != null)) {
+					Direction d = getHarassMoveDir(theirHQ, curLoc);
+					if (d != null) {
 						rc.move(d);
+					} else {
+						// if first 3 move choices are not able to be made, probably stuck.
+						stateChanged = true;
+						curState = (int)rc.getID()%2;	// come back to this: make it randomly select between states 1&2
+						rc.broadcast(curSoldier+1, curLoc.distanceSquaredTo(theirHQ));	//save how far you are from their HQ
+						rc.broadcast(curSoldier+3, dirToIntInverse(curLoc.directionTo(theirHQ).opposite())); // saves direction to ENEMY hq
 					}
+				}
+				break;
+				
+			///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+			case 1:	// Follow walls & enemy radii through LEFTWISE rotations
+				oldDistanceToEnemy = rc.readBroadcast(curSoldier+1);
+				toDest = intToDir(rc.readBroadcast(curSoldier+3));
+				prevDir = intToDir(rc.readBroadcast(curSoldier+2));
+				
+				// Base case:  if this state got us closer to the enemy, return to normal movement
+				if (curLoc.distanceSquaredTo(theirHQ) < oldDistanceToEnemy) {
+					stateChanged=true;
+					curState = 0;
+					rc.broadcast(curSoldier+2,0);
+				}
+				
+				moveDir = null;
+				Direction[] dirsL = {toDest.rotateRight(), toDest,
+						toDest.rotateLeft(), toDest.rotateLeft().rotateLeft(), 
+						toDest.rotateLeft().rotateLeft().rotateLeft(), toDest.rotateLeft().rotateLeft().rotateLeft().rotateLeft(), 
+						toDest.rotateLeft().rotateLeft().rotateLeft().rotateLeft().rotateLeft()};
+				for (int i = 0; i < dirsL.length; i++) {
+					//list of towers & HQ locations
+					boolean dangerZone = false;
+					for (MapLocation tower : theirTowers){
+						if ((curLoc.add(dirsL[i])).distanceSquaredTo(tower) <= RobotType.TOWER.attackRadiusSquared) {
+							dangerZone = true;
+						}
+					}
+					if ((curLoc.add(dirsL[i])).distanceSquaredTo(theirHQ) <= RobotType.HQ.attackRadiusSquared) {
+						dangerZone = true;
+					}
+					if (rc.canMove(dirsL[i]) && (dangerZone == false) && (dirsL[i] != prevDir)) {
+						moveDir = dirsL[i];
+						break;
+					}
+				}
+				rc.setIndicatorString(1, "toDest: "+toDest);
+				rc.setIndicatorString(2, "moveDir: "+moveDir);
+				if (moveDir != null && rc.isCoreReady()) {
+					rc.move(moveDir);
+					int prevDirInt = dirToIntInverse(moveDir);
+					rc.broadcast(curSoldier+2, prevDirInt);
+				}
+				break;
+			
+			///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+			case 2: // Follow walls & enemy radii through RIGHTWISE rotations
+				oldDistanceToEnemy = rc.readBroadcast(curSoldier+1);
+				toDest = intToDir(rc.readBroadcast(curSoldier+3));
+				prevDir = intToDir(rc.readBroadcast(curSoldier+2));
+				
+				// Base case:  if this state got us closer to the enemy, return to normal movement
+				if (curLoc.distanceSquaredTo(theirHQ) < oldDistanceToEnemy) {
+					stateChanged=true;
+					curState = 0;
+					rc.broadcast(curSoldier+2,0);
+				}
+				
+				moveDir = null;
+				Direction[] dirsR = {toDest.rotateLeft(), toDest,
+						toDest.rotateRight(), toDest.rotateRight().rotateRight(), 
+						toDest.rotateRight().rotateRight().rotateRight(), toDest.rotateRight().rotateRight().rotateRight().rotateRight(), 
+						toDest.rotateRight().rotateRight().rotateRight().rotateRight().rotateRight()};
+				for (int i = 0; i < dirsR.length; i++) {
+					//list of towers & HQ locations
+					boolean dangerZone = false;
+					for (MapLocation tower : theirTowers){
+						if ((curLoc.add(dirsR[i])).distanceSquaredTo(tower) <= RobotType.TOWER.attackRadiusSquared) {
+							dangerZone = true;
+						}
+					}
+					if ((curLoc.add(dirsR[i])).distanceSquaredTo(theirHQ) <= RobotType.HQ.attackRadiusSquared) {
+						dangerZone = true;
+					}
+					if (rc.canMove(dirsR[i]) && (dangerZone == false) && (dirsR[i] != prevDir)) {
+						moveDir = dirsR[i];
+						break;
+					}
+				}
+				rc.setIndicatorString(1, "toDest: "+toDest);
+				rc.setIndicatorString(2, "moveDir: "+moveDir);
+				if (moveDir != null && rc.isCoreReady()) {
+					rc.move(moveDir);
+					int prevDirInt = dirToIntInverse(moveDir);
+					rc.broadcast(curSoldier+2, prevDirInt);
 				}
 				break;
 			}
 
 			//Take care of stack
 			if (stateChanged) {rc.broadcast(curSoldier,curState);}	//Save changed state, if it was changed
-			if (curSoldier >= NUM_SOLDIERS+2*numSoldiers) {
+			if (curSoldier >= NUM_SOLDIERS+4*numSoldiers-2) {	//Soldiers each occupy FOUR spots on the messaging board
 				rc.broadcast(NUM_SOLDIERS+1, NUM_SOLDIERS+2);
 			} else {
-				rc.broadcast(NUM_SOLDIERS+1, curSoldier+2);
+				rc.broadcast(NUM_SOLDIERS+1, curSoldier+4);
 			}
 			rc.yield();
 		}
@@ -1137,8 +1351,14 @@ public class RobotPlayer {
 		}
 
 		public void execute() throws GameActionException {
-			if (rc.isWeaponReady()) {
-				attackLeastHealthEnemy(getEnemiesInAttackingRange(RobotType.TOWER));
+			RobotInfo[] enemies = rc.senseNearbyRobots(RobotType.TOWER.sensorRadiusSquared, this.theirTeam);
+			if (enemies.length != 0){
+				RobotInfo closestEnemy = closestEnemy(enemies, myHQ);
+				rc.broadcast(RALLY_X, closestEnemy.location.x);
+				rc.broadcast(RALLY_Y, closestEnemy.location.y);
+				if (rc.isWeaponReady()) {
+					attackLeastHealthEnemy(getEnemiesInAttackingRange(RobotType.TOWER));
+				}
 			}
 
 			rc.yield();
