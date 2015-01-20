@@ -1138,9 +1138,6 @@ public class RobotPlayer {
 
 		public void execute() throws GameActionException {
 			int oldDistanceToEnemy;
-			Direction toDest;
-			Direction prevDir;
-			Direction moveDir;
 			Direction prevCrawlerDir;
 			
 			distributeSupplies();
@@ -1345,7 +1342,7 @@ public class RobotPlayer {
 
 			switch (curState) {
 			case 0: // Basher in "rally" mode (default)
-				if (rc.isCoreReady() && isSafe) {
+				if (rc.isCoreReady()) {
 					Direction d = getMoveDir(rallyPoint);
 					int distToRally = curLoc.distanceSquaredTo(rallyPoint);
 					if (d != null) {
@@ -1478,16 +1475,28 @@ public class RobotPlayer {
 		}
 
 		public void execute() throws GameActionException {
+			int oldDistanceToEnemy;
+			Direction prevCrawlerDir;
+			
 			distributeSupplies();
 			rc.broadcast(TANK_ATTENDANCE, rc.readBroadcast(TANK_ATTENDANCE)+1);	//Take attendance
 			int numTanks = rc.readBroadcast(NUM_TANKS);
 			int curTank = rc.readBroadcast(NUM_TANKS+1);
 			int curState = rc.readBroadcast(curTank);		//Get the current state
+			MapLocation curLoc = rc.getLocation();
 			//MapLocation curLoc = rc.getLocation();
 			RobotInfo[] enemies = rc.senseNearbyRobots(RobotType.TANK.sensorRadiusSquared, this.theirTeam);
 			RobotInfo[] enemiesInRange = rc.senseNearbyRobots(RobotType.TANK.attackRadiusSquared, this.theirTeam);
 			Boolean isSafe = (enemies.length==0);
 			Boolean stateChanged = false;
+			
+			int rallyX = rc.readBroadcast(100);
+			int rallyY = rc.readBroadcast(101);
+			if ((rallyX == 0) && (rallyY == 0)){
+				rallyX = (int)((this.theirHQ.x+2*this.myHQ.x)/3);	// (1/3) the way away from my base (defensively safe, but not too close)
+				rallyY = (int)((this.theirHQ.y+2*this.myHQ.y)/3);
+			}
+			MapLocation rallyPoint = new MapLocation(rallyX, rallyY);
 
 			if (!isSafe) {	//There's an enemy robot nearby.  do something and attack!
 				if (rc.isWeaponReady() && enemiesInRange.length != 0) {
@@ -1503,17 +1512,111 @@ public class RobotPlayer {
 			switch (curState) {
 			case 0: // Tank in "rally" mode (default)
 				if (rc.isCoreReady() && (enemiesInRange.length == 0)) {
-					int rallyX = rc.readBroadcast(100);
-					int rallyY = rc.readBroadcast(101);
-					MapLocation rallyPoint;
-					if ((rallyX == 0) && (rallyY == 0)){
-						rallyX = (int)((this.theirHQ.x+2*this.myHQ.x)/3);	// (1/3) the way away from my base (defensively safe, but not too close)
-						rallyY = (int)((this.theirHQ.y+2*this.myHQ.y)/3);
-					}
-					rallyPoint = new MapLocation(rallyX, rallyY);
 					Direction d = getMoveDir(rallyPoint);
-					if (rc.canMove(d) && (d != null)) {
-						rc.move(d);
+					int distToRally = curLoc.distanceSquaredTo(rallyPoint);
+					if (d != null) {
+						if (rc.canMove(d)){
+							rc.move(d);
+						}
+					} else if (distToRally > 36) {
+						// if first 3 move choices are not able to be made, probably stuck.
+						stateChanged = true;
+						curState = randInt(1,2);	// make it randomly select between states 1&2
+						rc.broadcast(curTank+1, distToRally);	//save how far you are from their HQ
+//						below added for wall-crawler method
+						rc.broadcast(curTank+2, dirToInt(curLoc.directionTo(rallyPoint)));
+						rc.broadcast(curTank + 3, 0);	// initialize # of first tries to zero
+					}
+				}
+				break;
+				///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+			case 1: // Follow walls & enemy radii through LEFTWISE rotations
+				oldDistanceToEnemy = rc.readBroadcast(curTank+1);
+				int numLeftTries = rc.readBroadcast(curTank+3);
+				prevCrawlerDir = intToDir(rc.readBroadcast(curTank + 2));
+				rc.setIndicatorString(1, "prevCrawlerDir: "+prevCrawlerDir);
+
+				// Base case:  if crawling got us closer to the enemy, return to normal movement
+				if ((curLoc.distanceSquaredTo(rallyPoint) < oldDistanceToEnemy) || (numLeftTries > 4)) {
+					rc.setIndicatorString(2, "just hit base case!");
+					stateChanged=true;
+					curState = 0;
+				}
+
+				//Check to see if curLoc.add(prevCrawlerDir) can be moved to (no structures or VOIDS)
+				if (canCrawlTo(curLoc, prevCrawlerDir)) {
+					rc.setIndicatorString(2, "canCrawl towards "+prevCrawlerDir+" and rc.isCoreReady()="+rc.isCoreReady()+" and rc.canMove="+rc.canMove(prevCrawlerDir));
+					if (rc.isCoreReady() && rc.canMove(prevCrawlerDir)) {
+						rc.move(prevCrawlerDir);
+						Direction savedCrawlerDir = prevCrawlerDir.rotateRight().rotateRight();
+						rc.broadcast(curTank+2, dirToInt(savedCrawlerDir));
+						rc.broadcast(curTank + 3,  numLeftTries + 1);
+					}
+				}
+
+				//Rotate left until we can crawl to a new spot
+				Direction[] dirsL = {prevCrawlerDir, prevCrawlerDir.rotateLeft(), prevCrawlerDir.rotateLeft().rotateLeft(), 
+						prevCrawlerDir.rotateLeft().rotateLeft().rotateLeft(), prevCrawlerDir.rotateLeft().rotateLeft().rotateLeft().rotateLeft(), 
+						prevCrawlerDir.rotateLeft().rotateLeft().rotateLeft().rotateLeft().rotateLeft()};
+
+				for (int i = 0; i < dirsL.length; i++) {
+					if (canCrawlTo(curLoc, dirsL[i].rotateLeft())){
+						rc.setIndicatorString(2, "YES! I can crawl towards: "+dirsL[i].rotateLeft());
+						if (rc.isCoreReady() && rc.canMove(dirsL[i].rotateLeft())) {
+							rc.move(dirsL[i].rotateLeft());
+							rc.broadcast(curTank+2, dirToInt(dirsL[i]));	// saved the last wall or structure direction
+							rc.broadcast(curTank + 3,  0);
+						} else if (rc.isCoreReady()) {	// Core is ready, can crawl, but a unit is in the way.  Right-rotating units get preference.
+							Direction toHQ = curLoc.directionTo(myHQ);
+							if (rc.canMove(toHQ)){
+								rc.move(toHQ);
+								curState = 0;
+								stateChanged = true;
+							}
+						}
+						break;
+					}
+				}
+				break;
+				///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+			case 2: // Follow walls & enemy radii through RIGHTWISE rotations
+				oldDistanceToEnemy = rc.readBroadcast(curTank+1);
+				int numRightTries = rc.readBroadcast(curTank+3);
+				prevCrawlerDir = intToDir(rc.readBroadcast(curTank + 2));
+				rc.setIndicatorString(1, "prevCrawlerDir: "+prevCrawlerDir);
+
+				// Base case:  if crawling got us closer to the enemy, return to normal movement
+				if ((curLoc.distanceSquaredTo(rallyPoint) < oldDistanceToEnemy) || (numRightTries > 4)) {
+					rc.setIndicatorString(2, "just hit base case!");
+					stateChanged=true;
+					curState = 0;
+				}
+
+				//Check to see if curLoc.add(prevCrawlerDir) can be moved to (no structures or VOIDS)
+				if (canCrawlTo(curLoc, prevCrawlerDir)) {
+					rc.setIndicatorString(2, "canCrawl towards "+prevCrawlerDir+" and rc.isCoreReady()="+rc.isCoreReady()+" and rc.canMove="+rc.canMove(prevCrawlerDir));
+					if (rc.isCoreReady() && rc.canMove(prevCrawlerDir)) {
+						rc.move(prevCrawlerDir);
+						Direction savedCrawlerDir = prevCrawlerDir.rotateLeft().rotateLeft();
+						rc.broadcast(curTank+2, dirToInt(savedCrawlerDir));
+						rc.broadcast(curTank + 3,  numRightTries + 1);
+					}
+				}
+
+				//Rotate left until we can crawl to a new spot
+				Direction[] dirsR = {prevCrawlerDir, prevCrawlerDir.rotateRight(), prevCrawlerDir.rotateRight().rotateRight(), 
+						prevCrawlerDir.rotateRight().rotateRight().rotateRight(), prevCrawlerDir.rotateRight().rotateRight().rotateRight().rotateRight(), 
+						prevCrawlerDir.rotateRight().rotateRight().rotateRight().rotateRight().rotateRight()};
+
+				for (int i = 0; i < dirsR.length; i++) {
+					if (canCrawlTo(curLoc, dirsR[i].rotateRight())){
+						rc.setIndicatorString(2, "YES! I can crawl towards: "+dirsR[i].rotateRight());
+						if (rc.isCoreReady() && rc.canMove(dirsR[i].rotateRight())) {
+							rc.move(dirsR[i].rotateRight());
+							rc.broadcast(curTank+2, dirToInt(dirsR[i]));	// saved the last wall or structure direction
+							rc.broadcast(curTank + 3,  0);
+						}
+						break;
 					}
 				}
 				break;
@@ -1521,10 +1624,10 @@ public class RobotPlayer {
 
 			//Take care of stack
 			if (stateChanged) {rc.broadcast(curTank,curState);}	//Save changed state, if it was changed
-			if (curTank >= NUM_TANKS+2*numTanks) {
+			if (curTank >= NUM_TANKS+4*numTanks-2) {
 				rc.broadcast(NUM_TANKS+1, NUM_TANKS+2);
 			} else {
-				rc.broadcast(NUM_TANKS+1, curTank+2);
+				rc.broadcast(NUM_TANKS+1, curTank+4);
 			}
 			rc.yield();
 		}
