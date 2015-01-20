@@ -133,7 +133,9 @@ public class RobotPlayer {
 		}
 
 		public Direction getMoveDir(MapLocation dest) {
-			Direction[] dirs = getDirectionsToward(dest);
+			Direction toDest = rc.getLocation().directionTo(dest);
+			Direction[] dirs = {toDest,
+					toDest.rotateLeft(), toDest.rotateRight()};
 			for (Direction d : dirs) {
 				if (rc.canMove(d)) {
 					return d;
@@ -399,12 +401,13 @@ public class RobotPlayer {
 			TerrainTile thisTile = rc.senseTerrainTile(curLoc.add(toHere));
 			if ( thisTile.isTraversable() ) {
 				// check if an HQ/TOWER can shoot from here
+				int seige = rc.readBroadcast(SIEGE);	// if seige == 1, then we should be able to move into HQ/tower range
 				for (MapLocation tower : theirTowers){
-					if ((curLoc.add(toHere)).distanceSquaredTo(tower) <= RobotType.TOWER.attackRadiusSquared) {
+					if (((curLoc.add(toHere)).distanceSquaredTo(tower) <= RobotType.TOWER.attackRadiusSquared) && (seige == 0)) {
 						return false;
 					}
 				}
-				if ((curLoc.add(toHere)).distanceSquaredTo(theirHQ) <= RobotType.HQ.attackRadiusSquared) {
+				if (((curLoc.add(toHere)).distanceSquaredTo(theirHQ) <= RobotType.HQ.attackRadiusSquared) && (seige == 0)) {
 					return false;
 				} else {
 					return true;
@@ -1168,7 +1171,7 @@ public class RobotPlayer {
 			case 0: // Soldier in "HARASS" mode (default)
 				if (rc.isCoreReady() && (enemiesInRange.length == 0)) {
 					Direction d = getHarassMoveDir(theirHQ, curLoc);
-					rc.setIndicatorString(2, "harassMoveDir: "+d);
+//					rc.setIndicatorString(2, "harassMoveDir: "+d);
 					int distToTheirHQ = curLoc.distanceSquaredTo(theirHQ);
 					if (d != null) {
 						rc.move(d);
@@ -1176,15 +1179,12 @@ public class RobotPlayer {
 						// if first 3 move choices are not able to be made, probably stuck.
 						stateChanged = true;
 						curState = randInt(1,2);	// make it randomly select between states 1&2
-						rc.setIndicatorString(1, "curState: "+curState);
-						rc.setIndicatorString(2, "cannot move forward");
+//						rc.setIndicatorString(1, "curState: "+curState);
+//						rc.setIndicatorString(2, "cannot move forward");
 						rc.broadcast(curSoldier+1, distToTheirHQ);	//save how far you are from their HQ
 //						below added for wall-crawler method
 						rc.broadcast(curSoldier+2, dirToInt(curLoc.directionTo(theirHQ)));
 						rc.broadcast(curSoldier + 3, 0);	// initialize # of first tries to zero
-						
-//						below works great for the previous method.
-//						rc.broadcast(curSoldier+3, dirToIntInverse(curLoc.directionTo(theirHQ).opposite())); // saves direction to ENEMY hq
 					}
 				}
 				break;
@@ -1226,6 +1226,13 @@ public class RobotPlayer {
 							rc.move(dirsL[i].rotateLeft());
 							rc.broadcast(curSoldier+2, dirToInt(dirsL[i]));	// saved the last wall or structure direction
 							rc.broadcast(curSoldier + 3,  0);
+						} else if (rc.isCoreReady()) {	// Core is ready, can crawl, but a unit is in the way.  Right-rotating units get preference.
+							Direction toHQ = curLoc.directionTo(myHQ);
+							if (rc.canMove(toHQ)){
+								rc.move(toHQ);
+								curState = 0;
+								stateChanged = true;
+							}
 						}
 						break;
 					}
@@ -1295,6 +1302,18 @@ public class RobotPlayer {
 		}
 
 		public void execute() throws GameActionException {
+			int oldDistanceToEnemy;
+			Direction prevCrawlerDir;
+			MapLocation rallyPoint;
+			
+			int rallyX = rc.readBroadcast(100);
+			int rallyY = rc.readBroadcast(101);
+			if ((rallyX == 0) && (rallyY == 0)){
+				rallyX = (int)((this.theirHQ.x+2*this.myHQ.x)/3);	// (1/3) the way away from my base (defensively safe, but not too close)
+				rallyY = (int)((this.theirHQ.y+2*this.myHQ.y)/3);
+			}
+			rallyPoint = new MapLocation(rallyX, rallyY);
+			
 			distributeSupplies();
 			rc.broadcast(BASHER_ATTENDANCE, rc.readBroadcast(BASHER_ATTENDANCE)+1);	//Take attendance
 			int numBashers = rc.readBroadcast(NUM_BASHERS);
@@ -1327,17 +1346,113 @@ public class RobotPlayer {
 			switch (curState) {
 			case 0: // Basher in "rally" mode (default)
 				if (rc.isCoreReady() && isSafe) {
-					int rallyX = rc.readBroadcast(100);
-					int rallyY = rc.readBroadcast(101);
-					MapLocation rallyPoint;
-					if ((rallyX == 0) && (rallyY == 0)){
-						rallyX = (int)((this.theirHQ.x+2*this.myHQ.x)/3);	// (1/3) the way away from my base (defensively safe, but not too close)
-						rallyY = (int)((this.theirHQ.y+2*this.myHQ.y)/3);
-					}
-					rallyPoint = new MapLocation(rallyX, rallyY);
 					Direction d = getMoveDir(rallyPoint);
-					if (rc.canMove(d) && (d != null)) {
-						rc.move(d);
+					int distToRally = curLoc.distanceSquaredTo(rallyPoint);
+					if (d != null) {
+						if (rc.canMove(d)){
+							rc.move(d);
+						}
+					} else if (distToRally > 36) {
+						// if first 3 move choices are not able to be made, probably stuck.
+						stateChanged = true;
+						curState = randInt(1,2);	// make it randomly select between states 1&2
+//						rc.setIndicatorString(1, "curState: "+curState);
+//						rc.setIndicatorString(2, "cannot move forward");
+						rc.broadcast(curBasher+1, distToRally);	//save how far you are from their HQ
+//						below added for wall-crawler method
+						rc.broadcast(curBasher+2, dirToInt(curLoc.directionTo(rallyPoint)));
+						rc.broadcast(curBasher + 3, 0);	// initialize # of first tries to zero
+					}
+				}
+				break;
+			///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+			case 1: // Follow walls & enemy radii through LEFTWISE rotations
+				oldDistanceToEnemy = rc.readBroadcast(curBasher+1);
+				int numLeftTries = rc.readBroadcast(curBasher+3);
+				prevCrawlerDir = intToDir(rc.readBroadcast(curBasher + 2));
+				rc.setIndicatorString(1, "prevCrawlerDir: "+prevCrawlerDir);
+				
+				// Base case:  if crawling got us closer to the enemy, return to normal movement
+				if ((curLoc.distanceSquaredTo(rallyPoint) < oldDistanceToEnemy) || (numLeftTries > 4)) {
+					rc.setIndicatorString(2, "just hit base case!");
+					stateChanged=true;
+					curState = 0;
+				}
+				
+				//Check to see if curLoc.add(prevCrawlerDir) can be moved to (no structures or VOIDS)
+				if (canCrawlTo(curLoc, prevCrawlerDir)) {
+					rc.setIndicatorString(2, "canCrawl towards "+prevCrawlerDir+" and rc.isCoreReady()="+rc.isCoreReady()+" and rc.canMove="+rc.canMove(prevCrawlerDir));
+					if (rc.isCoreReady() && rc.canMove(prevCrawlerDir)) {
+						rc.move(prevCrawlerDir);
+						Direction savedCrawlerDir = prevCrawlerDir.rotateRight().rotateRight();
+						rc.broadcast(curBasher+2, dirToInt(savedCrawlerDir));
+						rc.broadcast(curBasher + 3,  numLeftTries + 1);
+					}
+				}
+				
+				//Rotate left until we can crawl to a new spot
+				Direction[] dirsL = {prevCrawlerDir, prevCrawlerDir.rotateLeft(), prevCrawlerDir.rotateLeft().rotateLeft(), 
+						prevCrawlerDir.rotateLeft().rotateLeft().rotateLeft(), prevCrawlerDir.rotateLeft().rotateLeft().rotateLeft().rotateLeft(), 
+						prevCrawlerDir.rotateLeft().rotateLeft().rotateLeft().rotateLeft().rotateLeft()};
+				
+				for (int i = 0; i < dirsL.length; i++) {
+					if (canCrawlTo(curLoc, dirsL[i].rotateLeft())){
+						rc.setIndicatorString(2, "YES! I can crawl towards: "+dirsL[i].rotateLeft());
+						if (rc.isCoreReady() && rc.canMove(dirsL[i].rotateLeft())) {
+							rc.move(dirsL[i].rotateLeft());
+							rc.broadcast(curBasher+2, dirToInt(dirsL[i]));	// saved the last wall or structure direction
+							rc.broadcast(curBasher + 3,  0);
+						} else if (rc.isCoreReady()) {	// Core is ready, can crawl, but a unit is in the way.  Right-rotating units get preference.
+							Direction toHQ = curLoc.directionTo(myHQ);
+							if (rc.canMove(toHQ)){
+								rc.move(toHQ);
+								curState = 0;
+								stateChanged = true;
+							}
+						}
+						break;
+					}
+				}
+				break;
+			///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+			case 2: // Follow walls & enemy radii through RIGHTWISE rotations
+				oldDistanceToEnemy = rc.readBroadcast(curBasher+1);
+				int numRightTries = rc.readBroadcast(curBasher+3);
+				prevCrawlerDir = intToDir(rc.readBroadcast(curBasher + 2));
+				rc.setIndicatorString(1, "prevCrawlerDir: "+prevCrawlerDir);
+				
+				// Base case:  if crawling got us closer to the enemy, return to normal movement
+				if ((curLoc.distanceSquaredTo(rallyPoint) < oldDistanceToEnemy) || (numRightTries > 4)) {
+					rc.setIndicatorString(2, "just hit base case!");
+					stateChanged=true;
+					curState = 0;
+				}
+				
+				//Check to see if curLoc.add(prevCrawlerDir) can be moved to (no structures or VOIDS)
+				if (canCrawlTo(curLoc, prevCrawlerDir)) {
+					rc.setIndicatorString(2, "canCrawl towards "+prevCrawlerDir+" and rc.isCoreReady()="+rc.isCoreReady()+" and rc.canMove="+rc.canMove(prevCrawlerDir));
+					if (rc.isCoreReady() && rc.canMove(prevCrawlerDir)) {
+						rc.move(prevCrawlerDir);
+						Direction savedCrawlerDir = prevCrawlerDir.rotateLeft().rotateLeft();
+						rc.broadcast(curBasher+2, dirToInt(savedCrawlerDir));
+						rc.broadcast(curBasher + 3,  numRightTries + 1);
+					}
+				}
+				
+				//Rotate left until we can crawl to a new spot
+				Direction[] dirsR = {prevCrawlerDir, prevCrawlerDir.rotateRight(), prevCrawlerDir.rotateRight().rotateRight(), 
+						prevCrawlerDir.rotateRight().rotateRight().rotateRight(), prevCrawlerDir.rotateRight().rotateRight().rotateRight().rotateRight(), 
+						prevCrawlerDir.rotateRight().rotateRight().rotateRight().rotateRight().rotateRight()};
+				
+				for (int i = 0; i < dirsR.length; i++) {
+					if (canCrawlTo(curLoc, dirsR[i].rotateRight())){
+						rc.setIndicatorString(2, "YES! I can crawl towards: "+dirsR[i].rotateRight());
+						if (rc.isCoreReady() && rc.canMove(dirsR[i].rotateRight())) {
+							rc.move(dirsR[i].rotateRight());
+							rc.broadcast(curBasher+2, dirToInt(dirsR[i]));	// saved the last wall or structure direction
+							rc.broadcast(curBasher + 3,  0);
+						}
+						break;
 					}
 				}
 				break;
@@ -1345,10 +1460,10 @@ public class RobotPlayer {
 
 			//Take care of stack
 			if (stateChanged) {rc.broadcast(curBasher,curState);}	//Save changed state, if it was changed
-			if (curBasher >= NUM_BASHERS+2*numBashers) {
+			if (curBasher >= NUM_BASHERS+4*numBashers-2) {
 				rc.broadcast(NUM_BASHERS+1, NUM_BASHERS+2);
 			} else {
-				rc.broadcast(NUM_BASHERS+1, curBasher+2);
+				rc.broadcast(NUM_BASHERS+1, curBasher+4);
 			}
 			rc.yield();
 		}
