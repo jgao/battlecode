@@ -1047,7 +1047,7 @@ public class RobotPlayer {
 			int numBashers = rc.readBroadcast(NUM_BASHERS);
 			int gameStage = rc.readBroadcast(GAME_STAGE);
 			if (rc.isCoreReady() && rc.getTeamOre() > (RobotType.SOLDIER.oreCost)){
-				if (gameStage==2 && numSoldiers < 10) {
+				if (gameStage>=2 && numSoldiers < 10) {
 					Direction newDir = getSpawnDirection(RobotType.SOLDIER);
 					if (newDir != null) {
 						rc.spawn(newDir, RobotType.SOLDIER);
@@ -1058,18 +1058,18 @@ public class RobotPlayer {
 					}
 				}
 			}
-			if (rc.isCoreReady() && rc.getTeamOre() > (RobotType.BASHER.oreCost)){
-				if ((gameStage>=3 && numBashers < 10) || (gameStage >= 4 && numBashers < 15)) {
-					Direction newDir = getSpawnDirection(RobotType.BASHER);
-					if (newDir != null) {
-						rc.spawn(newDir, RobotType.BASHER);
-						if (rc.readBroadcast(NUM_BASHERS+1)==0){
-							rc.broadcast(NUM_BASHERS+1, NUM_BASHERS+2);	//Initialize the pointer (if it hasn't been done yet)
-						}
-						rc.broadcast(NUM_BASHERS, numBashers + 1);	//increment numSoldiers
-					}
-				}
-			}
+			// if (rc.isCoreReady() && rc.getTeamOre() > (RobotType.BASHER.oreCost)){
+			// 	if ((gameStage>=3 && numBashers < 10) || (gameStage >= 4 && numBashers < 15)) {
+			// 		Direction newDir = getSpawnDirection(RobotType.BASHER);
+			// 		if (newDir != null) {
+			// 			rc.spawn(newDir, RobotType.BASHER);
+			// 			if (rc.readBroadcast(NUM_BASHERS+1)==0){
+			// 				rc.broadcast(NUM_BASHERS+1, NUM_BASHERS+2);	//Initialize the pointer (if it hasn't been done yet)
+			// 			}
+			// 			rc.broadcast(NUM_BASHERS, numBashers + 1);	//increment numSoldiers
+			// 		}
+			// 	}
+			// }
 
 			rc.yield();
 		}
