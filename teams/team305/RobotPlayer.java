@@ -1047,7 +1047,19 @@ public class RobotPlayer {
 			int numBashers = rc.readBroadcast(NUM_BASHERS);
 			int gameStage = rc.readBroadcast(GAME_STAGE);
 			if (rc.isCoreReady() && rc.getTeamOre() > (RobotType.SOLDIER.oreCost)){
-				if (gameStage>=2 && numSoldiers < 10) {
+				if (gameStage==2 && numSoldiers < 10) {
+					Direction newDir = getSpawnDirection(RobotType.SOLDIER);
+					if (newDir != null) {
+						rc.spawn(newDir, RobotType.SOLDIER);
+						if (rc.readBroadcast(NUM_SOLDIERS+1)==0){
+							rc.broadcast(NUM_SOLDIERS+1, NUM_SOLDIERS+2);	//Initialize the pointer (if it hasn't been done yet)
+						}
+						rc.broadcast(NUM_SOLDIERS, numSoldiers + 1);	//increment numSoldiers
+					}
+				}
+			}
+			if (rc.isCoreReady() && rc.getTeamOre() > (RobotType.TANK.oreCost + RobotType.SOLDIER.oreCost)) {
+				if (gameStage>=3) {
 					Direction newDir = getSpawnDirection(RobotType.SOLDIER);
 					if (newDir != null) {
 						rc.spawn(newDir, RobotType.SOLDIER);
