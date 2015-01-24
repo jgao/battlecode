@@ -56,7 +56,7 @@ public class RobotPlayer {
 			this.myTeam = rc.getTeam();
 			this.theirTeam = this.myTeam.opponent();
 		}
-		
+
 		public Direction intToDir(int integer) {
 			if (integer == 0) {
 				return Direction.NORTH;
@@ -78,7 +78,7 @@ public class RobotPlayer {
 				return null;
 			}
 		}
-		
+
 		public int dirToInt(Direction d) {
 			if (d == Direction.NORTH) {
 				return 0;
@@ -100,7 +100,7 @@ public class RobotPlayer {
 				return 0;//this case should never happen
 			}
 		}
-		
+
 		public int dirToIntInverse(Direction d) {
 			if (d == Direction.NORTH) {
 				return 4;
@@ -143,7 +143,7 @@ public class RobotPlayer {
 			}
 			return null;
 		}
-		
+
 		public Direction getHarassMoveDir(MapLocation dest, MapLocation curLoc) throws GameActionException {
 			Direction toDest = curLoc.directionTo(dest);
 			Direction[] dirs = {toDest,
@@ -165,11 +165,11 @@ public class RobotPlayer {
 			}
 			return null;
 		}
-		
+
 		public Direction getLeftHarassMoveDir(MapLocation dest, MapLocation curLoc) throws GameActionException {
 			Direction toDest = curLoc.directionTo(dest);
 			Direction[] dirs = {toDest,
-					toDest.rotateLeft(), toDest.rotateLeft().rotateLeft(), 
+					toDest.rotateLeft(), toDest.rotateLeft().rotateLeft(),
 					toDest.rotateLeft().rotateLeft().rotateLeft(), toDest.rotateLeft().rotateLeft().rotateLeft().rotateLeft()};
 			for (Direction d : dirs) {
 				//list of towers & HQ locations
@@ -221,13 +221,13 @@ public class RobotPlayer {
 			}
 			return null;
 		}
-		
+
 		public Direction[] directionValues() {
 			Direction[] dV = {Direction.NORTH, Direction.NORTH_EAST, Direction.EAST, Direction.SOUTH_EAST,
 					Direction.SOUTH, Direction.SOUTH_WEST, Direction.WEST, Direction.NORTH_WEST};
 			return dV;
 		}
-		
+
 		public static int randInt(int min, int max) {
 		    return rand.nextInt((max - min) + 1) + min;
 		}
@@ -289,7 +289,7 @@ public class RobotPlayer {
 			}
 			return weakestRobot;
 		}
-		
+
 		public RobotInfo closestEnemy(RobotInfo[] enemies, MapLocation curLoc) throws GameActionException {
 			if (enemies.length == 0) {
 				return null;
@@ -305,7 +305,7 @@ public class RobotPlayer {
 			}
 			return closestRobot;
 		}
-		
+
 		public Direction basherMoveDir(Direction dirToEnemy) throws GameActionException {
 			if (rc.canMove(dirToEnemy)){
 				return dirToEnemy;
@@ -390,7 +390,7 @@ public class RobotPlayer {
 				}
 			}
 		}
-		
+
 		public boolean canCrawlTo(MapLocation curLoc, Direction toHere) throws GameActionException {
 			RobotInfo robotHere = rc.senseRobotAtLocation(curLoc.add(toHere));
 			if (robotHere != null){
@@ -401,18 +401,18 @@ public class RobotPlayer {
 			TerrainTile thisTile = rc.senseTerrainTile(curLoc.add(toHere));
 			if ( thisTile.isTraversable() ) {
 				// check if an HQ/TOWER can shoot from here
-				int seige = rc.readBroadcast(SIEGE);	// if seige == 1, then we should be able to move into HQ/tower range
+				int siege = rc.readBroadcast(SIEGE);	// if siege == 1, then we should be able to move into HQ/tower range
 				for (MapLocation tower : theirTowers){
-					if (((curLoc.add(toHere)).distanceSquaredTo(tower) <= RobotType.TOWER.attackRadiusSquared) && (seige == 0)) {
+					if (((curLoc.add(toHere)).distanceSquaredTo(tower) <= RobotType.TOWER.attackRadiusSquared) && (siege == 0)) {
 						return false;
 					}
 				}
-				if (((curLoc.add(toHere)).distanceSquaredTo(theirHQ) <= RobotType.HQ.attackRadiusSquared) && (seige == 0)) {
+				if (((curLoc.add(toHere)).distanceSquaredTo(theirHQ) <= RobotType.HQ.attackRadiusSquared) && (siege == 0)) {
 					return false;
 				} else {
 					return true;
 				}
-				
+
 			} else {
 				return false;	// Must be a void, etc.
 			}
@@ -538,8 +538,8 @@ public class RobotPlayer {
 		public void execute() throws GameActionException {
 			distributeSupplies();
 			int gameStage = rc.readBroadcast(GAME_STAGE);
-			int seige = rc.readBroadcast(SIEGE);
-			int seigeTime = rc.readBroadcast(SIEGE_TIME);
+			int siege = rc.readBroadcast(SIEGE);
+			int siegeTime = rc.readBroadcast(SIEGE_TIME);
 			int numBeavers = rc.readBroadcast(BEAVER_ATTENDANCE);
 			rc.broadcast(BEAVER_ATTENDANCE, 0); //reset attendance
 			rc.broadcast(NUM_BEAVERS, numBeavers);
@@ -583,7 +583,7 @@ public class RobotPlayer {
 				rc.broadcast(BUILDER_BEAVER,NUM_BEAVERS+2);		//Initialize beaverBuilder (if it hasn't been done yet)
 				builderBeaver = NUM_BEAVERS+2;
 			}
-			
+
 			///////////////////////////////////////////////////////////////////////////////////////////////////
 			// GAME STAGE 0 //
 			if ((numMinerFactories == 0) && (numBarracks == 0) && (numTankFactories == 0) && (gameStage != 0)){
@@ -621,9 +621,9 @@ public class RobotPlayer {
 			rc.setIndicatorString(1, "numBeavers: "+numBeavers);
 			rc.setIndicatorString(2, "Gamestage: "+gameStage);
 
-			
-			
-			
+
+
+
 
 			//Build structures
 
@@ -658,21 +658,21 @@ public class RobotPlayer {
 
 
 			//Attack commands
-			if ((numSoldiers+numTanks+numBashers > 25) && seige == 0) {
+			if ((numSoldiers+numTanks+numBashers > 25) && siege == 0) {
 //				rc.broadcast(RALLY_X, this.theirHQ.x);
 //				rc.broadcast(RALLY_Y, this.theirHQ.y);
-				seige = 1;
-				rc.broadcast(SIEGE, seige);	// We are now sieging on enemy base
+				siege = 1;
+				rc.broadcast(SIEGE, siege);	// We are now sieging on enemy base
 			}
-			if ((seige==1 && numTanks+numBashers+numSoldiers < 10) || (seige==1 && seigeTime >= 100)) {
+			if ((siege==1 && numTanks+numBashers+numSoldiers < 10) || (siege==1 && siegeTime >= 100)) {
 //				rc.broadcast(RALLY_X, (int)((this.theirHQ.x+2*this.myHQ.x)/3));
 //				rc.broadcast(RALLY_Y, (int)((this.theirHQ.y+2*this.myHQ.y)/3));	// Rally in front of home base
-				seige = 0;
-				rc.broadcast(SIEGE,seige);
+				siege = 0;
+				rc.broadcast(SIEGE,siege);
 				rc.broadcast(SIEGE_TIME, 0);
 			}
-			if (seige == 1){
-				rc.broadcast(SIEGE_TIME, seigeTime+1);
+			if (siege == 1){
+				rc.broadcast(SIEGE_TIME, siegeTime+1);
 			}
 
 
@@ -685,7 +685,7 @@ public class RobotPlayer {
 				if (rc.isWeaponReady()) {
 					attackLeastHealthEnemy(getEnemiesInAttackingRange(RobotType.HQ));
 				}
-			} else if (seige==0) {
+			} else if (siege==0) {
 				rc.broadcast(RALLY_X, (int)((this.theirHQ.x+2*this.myHQ.x)/3));
 				rc.broadcast(RALLY_Y, (int)((this.theirHQ.y+2*this.myHQ.y)/3));	// Rally in front of home base
 			} else {
@@ -1058,18 +1058,30 @@ public class RobotPlayer {
 					}
 				}
 			}
-			if (rc.isCoreReady() && rc.getTeamOre() > (RobotType.BASHER.oreCost)){
-				if ((gameStage>=3 && numBashers < 10) || (gameStage >= 4 && numBashers < 15)) {
-					Direction newDir = getSpawnDirection(RobotType.BASHER);
+			if (rc.isCoreReady() && rc.getTeamOre() > (RobotType.TANK.oreCost + RobotType.SOLDIER.oreCost)) {
+				if (gameStage>=3) {
+					Direction newDir = getSpawnDirection(RobotType.SOLDIER);
 					if (newDir != null) {
-						rc.spawn(newDir, RobotType.BASHER);
-						if (rc.readBroadcast(NUM_BASHERS+1)==0){
-							rc.broadcast(NUM_BASHERS+1, NUM_BASHERS+2);	//Initialize the pointer (if it hasn't been done yet)
+						rc.spawn(newDir, RobotType.SOLDIER);
+						if (rc.readBroadcast(NUM_SOLDIERS+1)==0){
+							rc.broadcast(NUM_SOLDIERS+1, NUM_SOLDIERS+2);	//Initialize the pointer (if it hasn't been done yet)
 						}
-						rc.broadcast(NUM_BASHERS, numBashers + 1);	//increment numSoldiers
+						rc.broadcast(NUM_SOLDIERS, numSoldiers + 1);	//increment numSoldiers
 					}
 				}
 			}
+			// if (rc.isCoreReady() && rc.getTeamOre() > (RobotType.BASHER.oreCost)){
+			// 	if ((gameStage>=3 && numBashers < 10) || (gameStage >= 4 && numBashers < 15)) {
+			// 		Direction newDir = getSpawnDirection(RobotType.BASHER);
+			// 		if (newDir != null) {
+			// 			rc.spawn(newDir, RobotType.BASHER);
+			// 			if (rc.readBroadcast(NUM_BASHERS+1)==0){
+			// 				rc.broadcast(NUM_BASHERS+1, NUM_BASHERS+2);	//Initialize the pointer (if it hasn't been done yet)
+			// 			}
+			// 			rc.broadcast(NUM_BASHERS, numBashers + 1);	//increment numSoldiers
+			// 		}
+			// 	}
+			// }
 
 			rc.yield();
 		}
@@ -1139,7 +1151,7 @@ public class RobotPlayer {
 		public void execute() throws GameActionException {
 			int oldDistanceToEnemy;
 			Direction prevCrawlerDir;
-			
+
 			distributeSupplies();
 			rc.setIndicatorString(0, "previous attendance: "+rc.readBroadcast(SOLDIER_ATTENDANCE));
 			rc.broadcast(SOLDIER_ATTENDANCE, rc.readBroadcast(SOLDIER_ATTENDANCE)+1);	//Take attendance
@@ -1185,21 +1197,21 @@ public class RobotPlayer {
 					}
 				}
 				break;
-				
+
 			///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 			case 1:	// Follow walls & enemy radii through LEFTWISE rotations
 				oldDistanceToEnemy = rc.readBroadcast(curSoldier+1);
 				int numLeftTries = rc.readBroadcast(curSoldier+3);
 				prevCrawlerDir = intToDir(rc.readBroadcast(curSoldier + 2));
 				rc.setIndicatorString(1, "prevCrawlerDir: "+prevCrawlerDir);
-				
+
 				// Base case:  if crawling got us closer to the enemy, return to normal movement
 				if ((curLoc.distanceSquaredTo(theirHQ) < oldDistanceToEnemy) || (numLeftTries > 4)) {
 					rc.setIndicatorString(2, "just hit base case!");
 					stateChanged=true;
 					curState = 0;
 				}
-				
+
 				//Check to see if curLoc.add(prevCrawlerDir) can be moved to (no structures or VOIDS)
 				if (canCrawlTo(curLoc, prevCrawlerDir)) {
 					rc.setIndicatorString(2, "canCrawl towards "+prevCrawlerDir+" and rc.isCoreReady()="+rc.isCoreReady()+" and rc.canMove="+rc.canMove(prevCrawlerDir));
@@ -1210,12 +1222,12 @@ public class RobotPlayer {
 						rc.broadcast(curSoldier + 3,  numLeftTries + 1);
 					}
 				}
-				
+
 				//Rotate left until we can crawl to a new spot
-				Direction[] dirsL = {prevCrawlerDir, prevCrawlerDir.rotateLeft(), prevCrawlerDir.rotateLeft().rotateLeft(), 
-						prevCrawlerDir.rotateLeft().rotateLeft().rotateLeft(), prevCrawlerDir.rotateLeft().rotateLeft().rotateLeft().rotateLeft(), 
+				Direction[] dirsL = {prevCrawlerDir, prevCrawlerDir.rotateLeft(), prevCrawlerDir.rotateLeft().rotateLeft(),
+						prevCrawlerDir.rotateLeft().rotateLeft().rotateLeft(), prevCrawlerDir.rotateLeft().rotateLeft().rotateLeft().rotateLeft(),
 						prevCrawlerDir.rotateLeft().rotateLeft().rotateLeft().rotateLeft().rotateLeft()};
-				
+
 				for (int i = 0; i < dirsL.length; i++) {
 					if (canCrawlTo(curLoc, dirsL[i].rotateLeft())){
 						rc.setIndicatorString(2, "YES! I can crawl towards: "+dirsL[i].rotateLeft());
@@ -1235,21 +1247,21 @@ public class RobotPlayer {
 					}
 				}
 				break;
-			
+
 			///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 			case 2: // Follow walls & enemy radii through RIGHTWISE rotations
 				oldDistanceToEnemy = rc.readBroadcast(curSoldier+1);
 				int numRightTries = rc.readBroadcast(curSoldier+3);
 				prevCrawlerDir = intToDir(rc.readBroadcast(curSoldier + 2));
 				rc.setIndicatorString(1, "prevCrawlerDir: "+prevCrawlerDir);
-				
+
 				// Base case:  if crawling got us closer to the enemy, return to normal movement
 				if ((curLoc.distanceSquaredTo(theirHQ) < oldDistanceToEnemy) || (numRightTries > 4)) {
 					rc.setIndicatorString(2, "just hit base case!");
 					stateChanged=true;
 					curState = 0;
 				}
-				
+
 				//Check to see if curLoc.add(prevCrawlerDir) can be moved to (no structures or VOIDS)
 				if (canCrawlTo(curLoc, prevCrawlerDir)) {
 					rc.setIndicatorString(2, "canCrawl towards "+prevCrawlerDir+" and rc.isCoreReady()="+rc.isCoreReady()+" and rc.canMove="+rc.canMove(prevCrawlerDir));
@@ -1260,12 +1272,12 @@ public class RobotPlayer {
 						rc.broadcast(curSoldier + 3,  numRightTries + 1);
 					}
 				}
-				
+
 				//Rotate left until we can crawl to a new spot
-				Direction[] dirsR = {prevCrawlerDir, prevCrawlerDir.rotateRight(), prevCrawlerDir.rotateRight().rotateRight(), 
-						prevCrawlerDir.rotateRight().rotateRight().rotateRight(), prevCrawlerDir.rotateRight().rotateRight().rotateRight().rotateRight(), 
+				Direction[] dirsR = {prevCrawlerDir, prevCrawlerDir.rotateRight(), prevCrawlerDir.rotateRight().rotateRight(),
+						prevCrawlerDir.rotateRight().rotateRight().rotateRight(), prevCrawlerDir.rotateRight().rotateRight().rotateRight().rotateRight(),
 						prevCrawlerDir.rotateRight().rotateRight().rotateRight().rotateRight().rotateRight()};
-				
+
 				for (int i = 0; i < dirsR.length; i++) {
 					if (canCrawlTo(curLoc, dirsR[i].rotateRight())){
 						rc.setIndicatorString(2, "YES! I can crawl towards: "+dirsR[i].rotateRight());
@@ -1290,7 +1302,7 @@ public class RobotPlayer {
 			rc.yield();
 		}
 	}
-	
+
 	//----- Basher -----//
 	public static class Basher extends BaseBot {
 
@@ -1302,7 +1314,7 @@ public class RobotPlayer {
 			int oldDistanceToEnemy;
 			Direction prevCrawlerDir;
 			MapLocation rallyPoint;
-			
+
 			int rallyX = rc.readBroadcast(100);
 			int rallyY = rc.readBroadcast(101);
 			if ((rallyX == 0) && (rallyY == 0)){
@@ -1310,7 +1322,7 @@ public class RobotPlayer {
 				rallyY = (int)((this.theirHQ.y+2*this.myHQ.y)/3);
 			}
 			rallyPoint = new MapLocation(rallyX, rallyY);
-			
+
 			distributeSupplies();
 			rc.broadcast(BASHER_ATTENDANCE, rc.readBroadcast(BASHER_ATTENDANCE)+1);	//Take attendance
 			int numBashers = rc.readBroadcast(NUM_BASHERS);
@@ -1323,7 +1335,7 @@ public class RobotPlayer {
 			Boolean stateChanged = false;
 
 			if (!isSafe) {	//There's an enemy robot nearby.  do something and attack!
-					
+
 				if (rc.isCoreReady()){//Can move, now find a suitable direction to move:
 					RobotInfo closestEnemy = closestEnemy(enemies, curLoc);
 					if (closestEnemy != null) {
@@ -1368,14 +1380,14 @@ public class RobotPlayer {
 				int numLeftTries = rc.readBroadcast(curBasher+3);
 				prevCrawlerDir = intToDir(rc.readBroadcast(curBasher + 2));
 				rc.setIndicatorString(1, "prevCrawlerDir: "+prevCrawlerDir);
-				
+
 				// Base case:  if crawling got us closer to the enemy, return to normal movement
 				if ((curLoc.distanceSquaredTo(rallyPoint) < oldDistanceToEnemy) || (numLeftTries > 4)) {
 					rc.setIndicatorString(2, "just hit base case!");
 					stateChanged=true;
 					curState = 0;
 				}
-				
+
 				//Check to see if curLoc.add(prevCrawlerDir) can be moved to (no structures or VOIDS)
 				if (canCrawlTo(curLoc, prevCrawlerDir)) {
 					rc.setIndicatorString(2, "canCrawl towards "+prevCrawlerDir+" and rc.isCoreReady()="+rc.isCoreReady()+" and rc.canMove="+rc.canMove(prevCrawlerDir));
@@ -1386,12 +1398,12 @@ public class RobotPlayer {
 						rc.broadcast(curBasher + 3,  numLeftTries + 1);
 					}
 				}
-				
+
 				//Rotate left until we can crawl to a new spot
-				Direction[] dirsL = {prevCrawlerDir, prevCrawlerDir.rotateLeft(), prevCrawlerDir.rotateLeft().rotateLeft(), 
-						prevCrawlerDir.rotateLeft().rotateLeft().rotateLeft(), prevCrawlerDir.rotateLeft().rotateLeft().rotateLeft().rotateLeft(), 
+				Direction[] dirsL = {prevCrawlerDir, prevCrawlerDir.rotateLeft(), prevCrawlerDir.rotateLeft().rotateLeft(),
+						prevCrawlerDir.rotateLeft().rotateLeft().rotateLeft(), prevCrawlerDir.rotateLeft().rotateLeft().rotateLeft().rotateLeft(),
 						prevCrawlerDir.rotateLeft().rotateLeft().rotateLeft().rotateLeft().rotateLeft()};
-				
+
 				for (int i = 0; i < dirsL.length; i++) {
 					if (canCrawlTo(curLoc, dirsL[i].rotateLeft())){
 						rc.setIndicatorString(2, "YES! I can crawl towards: "+dirsL[i].rotateLeft());
@@ -1417,14 +1429,14 @@ public class RobotPlayer {
 				int numRightTries = rc.readBroadcast(curBasher+3);
 				prevCrawlerDir = intToDir(rc.readBroadcast(curBasher + 2));
 				rc.setIndicatorString(1, "prevCrawlerDir: "+prevCrawlerDir);
-				
+
 				// Base case:  if crawling got us closer to the enemy, return to normal movement
 				if ((curLoc.distanceSquaredTo(rallyPoint) < oldDistanceToEnemy) || (numRightTries > 4)) {
 					rc.setIndicatorString(2, "just hit base case!");
 					stateChanged=true;
 					curState = 0;
 				}
-				
+
 				//Check to see if curLoc.add(prevCrawlerDir) can be moved to (no structures or VOIDS)
 				if (canCrawlTo(curLoc, prevCrawlerDir)) {
 					rc.setIndicatorString(2, "canCrawl towards "+prevCrawlerDir+" and rc.isCoreReady()="+rc.isCoreReady()+" and rc.canMove="+rc.canMove(prevCrawlerDir));
@@ -1435,12 +1447,12 @@ public class RobotPlayer {
 						rc.broadcast(curBasher + 3,  numRightTries + 1);
 					}
 				}
-				
+
 				//Rotate left until we can crawl to a new spot
-				Direction[] dirsR = {prevCrawlerDir, prevCrawlerDir.rotateRight(), prevCrawlerDir.rotateRight().rotateRight(), 
-						prevCrawlerDir.rotateRight().rotateRight().rotateRight(), prevCrawlerDir.rotateRight().rotateRight().rotateRight().rotateRight(), 
+				Direction[] dirsR = {prevCrawlerDir, prevCrawlerDir.rotateRight(), prevCrawlerDir.rotateRight().rotateRight(),
+						prevCrawlerDir.rotateRight().rotateRight().rotateRight(), prevCrawlerDir.rotateRight().rotateRight().rotateRight().rotateRight(),
 						prevCrawlerDir.rotateRight().rotateRight().rotateRight().rotateRight().rotateRight()};
-				
+
 				for (int i = 0; i < dirsR.length; i++) {
 					if (canCrawlTo(curLoc, dirsR[i].rotateRight())){
 						rc.setIndicatorString(2, "YES! I can crawl towards: "+dirsR[i].rotateRight());
@@ -1477,7 +1489,7 @@ public class RobotPlayer {
 		public void execute() throws GameActionException {
 			int oldDistanceToEnemy;
 			Direction prevCrawlerDir;
-			
+
 			distributeSupplies();
 			rc.broadcast(TANK_ATTENDANCE, rc.readBroadcast(TANK_ATTENDANCE)+1);	//Take attendance
 			int numTanks = rc.readBroadcast(NUM_TANKS);
@@ -1489,7 +1501,7 @@ public class RobotPlayer {
 			RobotInfo[] enemiesInRange = rc.senseNearbyRobots(RobotType.TANK.attackRadiusSquared, this.theirTeam);
 			Boolean isSafe = (enemies.length==0);
 			Boolean stateChanged = false;
-			
+
 			int rallyX = rc.readBroadcast(100);
 			int rallyY = rc.readBroadcast(101);
 			if ((rallyX == 0) && (rallyY == 0)){
@@ -1555,8 +1567,8 @@ public class RobotPlayer {
 				}
 
 				//Rotate left until we can crawl to a new spot
-				Direction[] dirsL = {prevCrawlerDir, prevCrawlerDir.rotateLeft(), prevCrawlerDir.rotateLeft().rotateLeft(), 
-						prevCrawlerDir.rotateLeft().rotateLeft().rotateLeft(), prevCrawlerDir.rotateLeft().rotateLeft().rotateLeft().rotateLeft(), 
+				Direction[] dirsL = {prevCrawlerDir, prevCrawlerDir.rotateLeft(), prevCrawlerDir.rotateLeft().rotateLeft(),
+						prevCrawlerDir.rotateLeft().rotateLeft().rotateLeft(), prevCrawlerDir.rotateLeft().rotateLeft().rotateLeft().rotateLeft(),
 						prevCrawlerDir.rotateLeft().rotateLeft().rotateLeft().rotateLeft().rotateLeft()};
 
 				for (int i = 0; i < dirsL.length; i++) {
@@ -1604,8 +1616,8 @@ public class RobotPlayer {
 				}
 
 				//Rotate left until we can crawl to a new spot
-				Direction[] dirsR = {prevCrawlerDir, prevCrawlerDir.rotateRight(), prevCrawlerDir.rotateRight().rotateRight(), 
-						prevCrawlerDir.rotateRight().rotateRight().rotateRight(), prevCrawlerDir.rotateRight().rotateRight().rotateRight().rotateRight(), 
+				Direction[] dirsR = {prevCrawlerDir, prevCrawlerDir.rotateRight(), prevCrawlerDir.rotateRight().rotateRight(),
+						prevCrawlerDir.rotateRight().rotateRight().rotateRight(), prevCrawlerDir.rotateRight().rotateRight().rotateRight().rotateRight(),
 						prevCrawlerDir.rotateRight().rotateRight().rotateRight().rotateRight().rotateRight()};
 
 				for (int i = 0; i < dirsR.length; i++) {
