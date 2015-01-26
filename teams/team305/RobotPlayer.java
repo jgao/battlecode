@@ -963,6 +963,10 @@ public class RobotPlayer {
 				curState = 2;
 				stateChanged=true;
 			}
+			
+			//Testing
+			rc.setIndicatorString(0, "curMiner: "+curMiner);
+			rc.setIndicatorString(1, "curState: "+curState);
 
 			switch (curState){
 			case 0:	// Miner in "mine" mode
@@ -973,8 +977,10 @@ public class RobotPlayer {
 						staticTime++;
 					} else if (oreHere > 0) { // Look for more ore if only getting 0.1 ore per mine
 						Boolean stickAround = true;
-						for (Direction d : Direction.values()) {
-							if (rc.senseOre(curLoc.add(d)) > oreHere && rc.canMove(d) && rc.isCoreReady()) {
+						int firstTry = randInt(0,7);
+						for (int i = 0; i < 8; i++) {
+							Direction d = directionValues()[(i+firstTry)%8];
+							if (rc.canMove(d) && rc.senseOre(curLoc.add(d)) > oreHere && rc.isCoreReady()){
 								rc.move(d);
 								stickAround = false;
 								staticTime = 0;
