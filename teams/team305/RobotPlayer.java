@@ -173,20 +173,24 @@ public class RobotPlayer {
 					toDest.rotateLeft().rotateLeft().rotateLeft(), toDest.rotateLeft().rotateLeft().rotateLeft().rotateLeft()};
 			for (Direction d : dirs) {
 				//list of towers & HQ locations
-				boolean dangerZone = false;
-				for (MapLocation tower : theirTowers){
-					if ((curLoc.add(d)).distanceSquaredTo(tower) <= RobotType.TOWER.attackRadiusSquared) {
-						dangerZone = true;
-					}
-				}
-				if ((curLoc.add(d)).distanceSquaredTo(theirHQ) <= RobotType.HQ.attackRadiusSquared) {
-					dangerZone = true;
-				}
-				if (rc.canMove(d) && (dangerZone == false)) {
+				if (rc.canMove(d) && safeDistance(d, curLoc)) {
 					return d;
 				}
 			}
 			return null;
+		}
+		
+		public Boolean safeDistance(Direction d, MapLocation curLoc) throws GameActionException {
+			boolean safe = true;
+			for (MapLocation tower : theirTowers){
+				if ((curLoc.add(d)).distanceSquaredTo(tower) <= RobotType.TOWER.attackRadiusSquared) {
+					safe = false;
+				}
+			}
+			if ((curLoc.add(d)).distanceSquaredTo(theirHQ) <= RobotType.HQ.attackRadiusSquared) {
+				safe = false;
+			}
+			return safe;
 		}
 
 		public Direction getSpawnDirection(RobotType type) {
@@ -1050,7 +1054,6 @@ public class RobotPlayer {
 		public void execute() throws GameActionException {
 			rc.broadcast(NUM_BARRACKS, rc.readBroadcast(NUM_BARRACKS)+1);	//Take attendance
 			int numSoldiers = rc.readBroadcast(NUM_SOLDIERS);
-			int numBashers = rc.readBroadcast(NUM_BASHERS);
 			int gameStage = rc.readBroadcast(GAME_STAGE);
 			if (rc.isCoreReady() && rc.getTeamOre() > (RobotType.SOLDIER.oreCost)){
 				if (gameStage==2 && numSoldiers < 10) {
@@ -1165,26 +1168,142 @@ public class RobotPlayer {
 			int curSoldier = rc.readBroadcast(NUM_SOLDIERS+1);
 			int curState = rc.readBroadcast(curSoldier);		//Get the current state
 			MapLocation curLoc = rc.getLocation();
-			RobotInfo[] enemies = rc.senseNearbyRobots(RobotType.SOLDIER.sensorRadiusSquared, this.theirTeam);
-			RobotInfo[] enemiesInRange = rc.senseNearbyRobots(RobotType.SOLDIER.attackRadiusSquared, this.theirTeam);
-			Boolean isSafe = (enemies.length==0);
 			Boolean stateChanged = false;
-
-			if (!isSafe) {	//There's an enemy robot nearby.  Do something and attack!
-				if (rc.isWeaponReady() && enemiesInRange.length != 0) {
-					attackLeastHealthEnemy(enemiesInRange);
+//			Boolean isSafe = true;
+			
+			RobotInfo[] robots = rc.senseNearbyRobots(RobotType.SOLDIER.sensorRadiusSquared);	//This is an EXPENSIVE method (100 bytecode)
+			List<RobotInfo> enemies = new ArrayList<RobotInfo>();			// enemy robots in range
+			List<RobotInfo> enemiesInRange = new ArrayList<RobotInfo>();	// enemy robots in attack range
+			List<RobotInfo> maHomeDogs = new ArrayList<RobotInfo>(); 		// friendly robots
+			List<RobotInfo> enemyMiners = new ArrayList<RobotInfo>();		// enemy beaver/miners
+			List<RobotInfo> enemyMinersInRange = new ArrayList<RobotInfo>();// enemy beavers/miners in attack range
+			List<RobotInfo> attackingEnemies = new ArrayList<RobotInfo>();	// enemy robots that can attack
+			List<RobotInfo> attackingEnemiesInRange = new ArrayList<RobotInfo>();	// enemy robots that can attack and are in attack range
+			for (RobotInfo robot : robots) {
+				if (robot.team == this.theirTeam && (robot.type != RobotType.HQ) && (robot.type != RobotType.TOWER)) {
+					enemies.add(robot);
+					if (robot.type == RobotType.BEAVER || robot.type == RobotType.MINER) {
+						enemyMiners.add(robot);
+					} else {
+						attackingEnemies.add(robot);
+					}
+					if (robot.location.distanceSquaredTo(curLoc) <= RobotType.SOLDIER.attackRadiusSquared) {
+						enemiesInRange.add(robot);
+						if (robot.type == RobotType.BEAVER || robot.type == RobotType.MINER) {
+							enemyMinersInRange.add(robot);
+						} else {
+							attackingEnemiesInRange.add(robot);
+						}
+//						isSafe = false;
+					}
+				} else if (robot.team == this.myTeam) {
+					maHomeDogs.add(robot);
 				}
 			}
+
+			// There are currently 4 attack scenarios:
+			//	(1) Attacking enemy in sight, no enemies in range, with friendly robots nearby
+			//		-> Move towards the enemy
+			//	(2) Attacking enemy in sight, no enemies in range, WITHOUT friendly robots nearby
+			//		-> Don't move (or preferably move towards a beaver/miner that is away from enemies)
+			//	(3) Attacking enemy in sight, in range, with friendly robots nearby
+			//		-> Attack, don't move
+			//	(4) Attacking enemy in sight, in range, WITHOUT friendly robots nearby
+			//		-> Attack, don't move
+			
+			if (attackingEnemies.size() > 0 && attackingEnemiesInRange.size() == 0) {
+				if (maHomeDogs.size() > attackingEnemies.size()+1) {
+					// move towards enemy with your "home-dogs"
+					Direction d = getMoveDir(attackingEnemies.get(0).location);
+					if (d != null && rc.isCoreReady() && safeDistance(d, curLoc)) {
+						rc.move(d);	// move towards first enemy in attackingEnemies arraylist
+						rc.setIndicatorString(1, "moving towards enemy w/ ma homedogs");
+					}
+				} else if (enemyMiners.size() > 0) {
+					// move (safely) towards a beaver/miner, if one exists, or just stay put
+					for (RobotInfo miner : enemyMiners) {
+						Direction toMiner = curLoc.directionTo(miner.location);
+						Boolean canMove = true;
+						for (RobotInfo enemy : attackingEnemies) {	// check to see if there are enemies I would be walking towards
+							Direction toEnemy = curLoc.directionTo(enemy.location);
+							if ((toMiner == toEnemy) || (toMiner.rotateLeft() == toEnemy) || (toMiner.rotateRight() == toEnemy)) {
+								canMove = false;	// yes there's an enemy with the miner
+							}
+						}
+						if (canMove && rc.canMove(toMiner) && rc.isCoreReady()) {
+							rc.move(toMiner);
+							rc.setIndicatorString(1, "moving towards a miner WITHOUT ma homedogs");
+							curState = 3;
+							break;	// exit for loop
+						}
+					}
+				}
+			} else if (attackingEnemiesInRange.size() > 0) {
+				// attack the enemies in range
+				if (rc.isWeaponReady()) {
+					RobotInfo[] attackingEnemiesInRangeArray = attackingEnemiesInRange.toArray(new RobotInfo[attackingEnemiesInRange.size()]);	//convert ArrayList -> Array
+					attackLeastHealthEnemy(attackingEnemiesInRangeArray);	//method accepts only arrays (not ArrayLists!)
+				}
+			} else if (enemyMinersInRange.size() > 0) {
+				if (rc.isWeaponReady()) {
+					RobotInfo[] enemyMinersInRangeArray = enemyMinersInRange.toArray(new RobotInfo[enemyMinersInRange.size()]);	//convert ArrayList -> Array
+					attackLeastHealthEnemy(enemyMinersInRangeArray);	//method accepts only arrays (not ArrayLists!)
+				}
+			} else if (enemyMiners.size() > 0 && attackingEnemies.size() == 0) {
+				// move towards enemy miner, since there are no attacking enemies
+				for (RobotInfo miner : enemyMiners) {
+					Direction toMiner = getMoveDir(miner.location);
+					if (rc.isCoreReady() && safeDistance(toMiner, curLoc)) {
+						rc.move(toMiner);
+						rc.setIndicatorString(1, "moving towards a miner since no bad guys are around");
+						curState = 3;
+						break;	// exit for loop
+					}
+				}
+			} 
+//			else if (enemyMiners.size() > 0 && attackingEnemies.size() > 0) {
+//				// there are enemeies nearby.  check to see if we can move towards miner without going in range of enemies
+//				for (RobotInfo miner : enemyMiners) {
+//					Direction toMiner = curLoc.directionTo(miner.location);
+//					Boolean canMove = true;
+//					for (RobotInfo enemy : attackingEnemies) {	// check to see if there are enemies I would be walking towards
+//						Direction toEnemy = curLoc.directionTo(enemy.location);
+//						if ((toMiner == toEnemy) || (toMiner.rotateLeft() == toEnemy) || (toMiner.rotateRight() == toEnemy)) {
+//							canMove = false;	// yes there's an enemy with the miner
+//						}
+//					}
+//					if (canMove && rc.canMove(toMiner) && rc.isCoreReady()) {
+//						rc.move(toMiner);
+//						curState = 3;
+//						break;	// exit for loop
+//					}
+//				}
+//			}
+			
+			// There are currently 2 harass beaver/miner scenarios:
+			//	(1) Beaver/miner in sight, out of range
+			//		-> Move towards beaver/miner
+			//	(2) Beaver/miner in sight, in range
+			//		-> Attack beaver/miner
+			
+//			
+//			if (!isSafe) {	//There's an enemy robot nearby.  Do something and attack!
+////				if (rc.isWeaponReady() && enemiesInRange.size() != 0) {
+//				if (rc.isWeaponReady()) {
+//					RobotInfo[] enemiesInRangeArray = enemiesInRange.toArray(new RobotInfo[enemiesInRange.size()]);	//convert ArrayList -> Array
+//					attackLeastHealthEnemy(enemiesInRangeArray);	//method accepts only arrays (not ArrayLists!)
+//				}
+//			}
 
 			//Testing
 //			rc.setIndicatorString(0, "curLoc.directionTo(theirHQ): "+curLoc.directionTo(theirHQ));
 			rc.setIndicatorString(0, "curState: "+curState);
-			rc.setIndicatorString(1, " ");
-			rc.setIndicatorString(2, " ");
+//			rc.setIndicatorString(1, "enemies: "+enemiesInRange.length);
+			rc.setIndicatorString(2, "enemies1: "+enemiesInRange.size());
 
 			switch (curState) {
 			case 0: // Soldier in "HARASS" mode (default)
-				if (rc.isCoreReady() && (enemiesInRange.length == 0)) {
+				if (rc.isCoreReady() && (enemiesInRange.size() == 0)) {
 					Direction d = getHarassMoveDir(theirHQ, curLoc);
 //					rc.setIndicatorString(2, "harassMoveDir: "+d);
 					int distToTheirHQ = curLoc.distanceSquaredTo(theirHQ);
@@ -1209,18 +1328,18 @@ public class RobotPlayer {
 				oldDistanceToEnemy = rc.readBroadcast(curSoldier+1);
 				int numLeftTries = rc.readBroadcast(curSoldier+3);
 				prevCrawlerDir = intToDir(rc.readBroadcast(curSoldier + 2));
-				rc.setIndicatorString(1, "prevCrawlerDir: "+prevCrawlerDir);
+//				rc.setIndicatorString(1, "prevCrawlerDir: "+prevCrawlerDir);
 
 				// Base case:  if crawling got us closer to the enemy, return to normal movement
 				if ((curLoc.distanceSquaredTo(theirHQ) < oldDistanceToEnemy) || (numLeftTries > 4)) {
-					rc.setIndicatorString(2, "just hit base case!");
+//					rc.setIndicatorString(2, "just hit base case!");
 					stateChanged=true;
 					curState = 0;
 				}
 
 				//Check to see if curLoc.add(prevCrawlerDir) can be moved to (no structures or VOIDS)
 				if (canCrawlTo(curLoc, prevCrawlerDir)) {
-					rc.setIndicatorString(2, "canCrawl towards "+prevCrawlerDir+" and rc.isCoreReady()="+rc.isCoreReady()+" and rc.canMove="+rc.canMove(prevCrawlerDir));
+//					rc.setIndicatorString(2, "canCrawl towards "+prevCrawlerDir+" and rc.isCoreReady()="+rc.isCoreReady()+" and rc.canMove="+rc.canMove(prevCrawlerDir));
 					if (rc.isCoreReady() && rc.canMove(prevCrawlerDir)) {
 						rc.move(prevCrawlerDir);
 						Direction savedCrawlerDir = prevCrawlerDir.rotateRight().rotateRight();
@@ -1236,7 +1355,7 @@ public class RobotPlayer {
 
 				for (int i = 0; i < dirsL.length; i++) {
 					if (canCrawlTo(curLoc, dirsL[i].rotateLeft())){
-						rc.setIndicatorString(2, "YES! I can crawl towards: "+dirsL[i].rotateLeft());
+//						rc.setIndicatorString(2, "YES! I can crawl towards: "+dirsL[i].rotateLeft());
 						if (rc.isCoreReady() && rc.canMove(dirsL[i].rotateLeft())) {
 							rc.move(dirsL[i].rotateLeft());
 							rc.broadcast(curSoldier+2, dirToInt(dirsL[i]));	// saved the last wall or structure direction
@@ -1259,18 +1378,18 @@ public class RobotPlayer {
 				oldDistanceToEnemy = rc.readBroadcast(curSoldier+1);
 				int numRightTries = rc.readBroadcast(curSoldier+3);
 				prevCrawlerDir = intToDir(rc.readBroadcast(curSoldier + 2));
-				rc.setIndicatorString(1, "prevCrawlerDir: "+prevCrawlerDir);
+//				rc.setIndicatorString(1, "prevCrawlerDir: "+prevCrawlerDir);
 
 				// Base case:  if crawling got us closer to the enemy, return to normal movement
 				if ((curLoc.distanceSquaredTo(theirHQ) < oldDistanceToEnemy) || (numRightTries > 4)) {
-					rc.setIndicatorString(2, "just hit base case!");
+//					rc.setIndicatorString(2, "just hit base case!");
 					stateChanged=true;
 					curState = 0;
 				}
 
 				//Check to see if curLoc.add(prevCrawlerDir) can be moved to (no structures or VOIDS)
 				if (canCrawlTo(curLoc, prevCrawlerDir)) {
-					rc.setIndicatorString(2, "canCrawl towards "+prevCrawlerDir+" and rc.isCoreReady()="+rc.isCoreReady()+" and rc.canMove="+rc.canMove(prevCrawlerDir));
+//					rc.setIndicatorString(2, "canCrawl towards "+prevCrawlerDir+" and rc.isCoreReady()="+rc.isCoreReady()+" and rc.canMove="+rc.canMove(prevCrawlerDir));
 					if (rc.isCoreReady() && rc.canMove(prevCrawlerDir)) {
 						rc.move(prevCrawlerDir);
 						Direction savedCrawlerDir = prevCrawlerDir.rotateLeft().rotateLeft();
@@ -1286,7 +1405,7 @@ public class RobotPlayer {
 
 				for (int i = 0; i < dirsR.length; i++) {
 					if (canCrawlTo(curLoc, dirsR[i].rotateRight())){
-						rc.setIndicatorString(2, "YES! I can crawl towards: "+dirsR[i].rotateRight());
+//						rc.setIndicatorString(2, "YES! I can crawl towards: "+dirsR[i].rotateRight());
 						if (rc.isCoreReady() && rc.canMove(dirsR[i].rotateRight())) {
 							rc.move(dirsR[i].rotateRight());
 							rc.broadcast(curSoldier+2, dirToInt(dirsR[i]));	// saved the last wall or structure direction
@@ -1295,6 +1414,10 @@ public class RobotPlayer {
 						break;
 					}
 				}
+				break;
+				
+			case 3:	// skips above states
+				curState = 0;
 				break;
 			}
 
