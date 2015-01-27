@@ -1232,7 +1232,7 @@ public class RobotPlayer {
 								canMove = false;	// yes there's an enemy with the miner
 							}
 						}
-						if (canMove && rc.canMove(toMiner) && rc.isCoreReady()) {
+						if (canMove && rc.canMove(toMiner) && rc.isCoreReady() && toMiner != null) {
 							rc.move(toMiner);
 							rc.setIndicatorString(1, "moving towards a miner WITHOUT ma homedogs");
 							curState = 3;
@@ -1255,7 +1255,7 @@ public class RobotPlayer {
 				// move towards enemy miner, since there are no attacking enemies
 				for (RobotInfo miner : enemyMiners) {
 					Direction toMiner = getMoveDir(miner.location);
-					if (rc.isCoreReady() && safeDistance(toMiner, curLoc)) {
+					if (rc.isCoreReady() && safeDistance(toMiner, curLoc) && toMiner != null) {
 						rc.move(toMiner);
 						rc.setIndicatorString(1, "moving towards a miner since no bad guys are around");
 						curState = 3;
@@ -1784,13 +1784,18 @@ public class RobotPlayer {
 
 		public void execute() throws GameActionException {
 			RobotInfo[] enemies = rc.senseNearbyRobots(RobotType.TOWER.sensorRadiusSquared, this.theirTeam);
+			MapLocation curLoc = rc.getLocation();
+
 			if (enemies.length != 0){
-				RobotInfo closestEnemy = closestEnemy(enemies, myHQ);
-				rc.broadcast(RALLY_X, closestEnemy.location.x);
-				rc.broadcast(RALLY_Y, closestEnemy.location.y);
+				//RobotInfo closestEnemy = closestEnemy(enemies, myHQ);
+				rc.broadcast(RALLY_X, curLoc.x);
+				rc.broadcast(RALLY_Y, curLoc.y);
 				if (rc.isWeaponReady()) {
 					attackLeastHealthEnemy(getEnemiesInAttackingRange(RobotType.TOWER));
 				}
+			} else if (rc.readBroadcast(RALLY_X) == curLoc.x && rc.readBroadcast(RALLY_Y) == curLoc.y) {
+				rc.broadcast(RALLY_X, 0);
+				rc.broadcast(RALLY_Y, 0);
 			}
 
 			rc.yield();
