@@ -1,4 +1,4 @@
-package team305;
+package team305_reference;
 import battlecode.common.*;
 import java.util.*;
 
@@ -179,10 +179,9 @@ public class RobotPlayer {
 			}
 			return null;
 		}
-
+		
 		public Boolean safeDistance(Direction d, MapLocation curLoc) throws GameActionException {
 			boolean safe = true;
-			if (d == null) return true;
 			for (MapLocation tower : theirTowers){
 				if ((curLoc.add(d)).distanceSquaredTo(tower) <= RobotType.TOWER.attackRadiusSquared) {
 					safe = false;
@@ -439,54 +438,6 @@ public class RobotPlayer {
 				return null;	//no exit in sight, cannot evade enemy
 			}
 		}
-		
-		public Direction averageDirection(List<Direction> dirs) throws GameActionException {
-			int x = 0;	//initialize vector
-			int y = 0;	
-			for (Direction d : dirs) {
-				if (d == Direction.NORTH){
-					y += 1;
-				} else if (d == Direction.NORTH_EAST) {
-					x += 1;
-					y += 1;
-				} else if (d == Direction.EAST) {
-					x += 1;
-				} else if (d == Direction.SOUTH_EAST) {
-					x += 1;
-					y -= 1;
-				} else if (d == Direction.SOUTH) {
-					y -= 1;
-				} else if (d == Direction.SOUTH_WEST) {
-					x -= 1;
-					y -= 1;
-				} else if (d == Direction.WEST) {
-					x -= 1;
-				} else if (d == Direction.NORTH_WEST) {
-					x -= 1;
-					y += 1;
-				}
-			}
-
-			if (x == 0 && y > 0) {
-				return Direction.NORTH;
-			} else if (x > 0 && y > 0) {
-				return Direction.NORTH_EAST;
-			} else if (x > 0 && y == 0) {
-				return Direction.EAST;
-			} else if (x > 0 && y < 0) {
-				return Direction.SOUTH_EAST;
-			} else if (x == 0 && y < 0) {
-				return Direction.SOUTH;
-			} else if (x < 0 && y < 0) {
-				return Direction.SOUTH_WEST;
-			} else if (x < 0 && y == 0) {
-				return Direction.WEST;
-			} else if (x < 0 && y > 0) {
-				return Direction.NORTH_WEST;
-			} else {
-				return null;
-			}
-		}
 
 		public void beginningOfTurn() {
 			if (rc.senseEnemyHQLocation() != null) {
@@ -566,7 +517,6 @@ public class RobotPlayer {
 	final static protected int CENTROID_DIVISOR = 9999; //A counter that's used for computing centroids of subgroups
 	final static protected int NUM_SUBGROUPS = 10000; //Number of subgroups. Beginning of subgroup stack
 	final static protected int CUR_SUBGROUP = 10001;
-	final static protected int DISTRESS_CALL = 50000; //0 for normal, else tower index, -1 for HQ distress
 
 
 
@@ -1017,7 +967,7 @@ public class RobotPlayer {
 				curState = 2;
 				stateChanged=true;
 			}
-
+			
 			//Testing
 			rc.setIndicatorString(0, "curMiner: "+curMiner);
 			rc.setIndicatorString(1, "curState: "+curState);
@@ -1220,7 +1170,7 @@ public class RobotPlayer {
 			MapLocation curLoc = rc.getLocation();
 			Boolean stateChanged = false;
 //			Boolean isSafe = true;
-
+			
 			RobotInfo[] robots = rc.senseNearbyRobots(RobotType.SOLDIER.sensorRadiusSquared);	//This is an EXPENSIVE method (100 bytecode)
 			List<RobotInfo> enemies = new ArrayList<RobotInfo>();			// enemy robots in range
 			List<RobotInfo> enemiesInRange = new ArrayList<RobotInfo>();	// enemy robots in attack range
@@ -1260,7 +1210,7 @@ public class RobotPlayer {
 			//		-> Attack, don't move
 			//	(4) Attacking enemy in sight, in range, WITHOUT friendly robots nearby
 			//		-> Attack, don't move
-
+			
 			if (attackingEnemies.size() > 0 && attackingEnemiesInRange.size() == 0) {
 				if (maHomeDogs.size() > attackingEnemies.size()+1) {
 					// move towards enemy with your "home-dogs"
@@ -1280,30 +1230,11 @@ public class RobotPlayer {
 								canMove = false;	// yes there's an enemy with the miner
 							}
 						}
-						if (canMove && rc.canMove(toMiner) && rc.isCoreReady() && toMiner != null) {
+						if (canMove && rc.canMove(toMiner) && rc.isCoreReady()) {
 							rc.move(toMiner);
 							rc.setIndicatorString(1, "moving towards a miner WITHOUT ma homedogs");
 							curState = 3;
 							break;	// exit for loop
-						}
-					}
-				} else {
-					// move away from the attacking enemies
-					// create a list of all the directions away from the attacking enemies
-					if (rc.isCoreReady()) {
-						List<Direction> awayDirs = new ArrayList<Direction>();
-						for (RobotInfo robot : attackingEnemies) {
-							awayDirs.add(robot.location.directionTo(curLoc));
-						}
-						Direction away = averageDirection(awayDirs);
-						Direction[] dirs = getDirectionsToward(curLoc.add(away));
-						for (Direction d : dirs) {
-							if (rc.canMove(d)) {
-								rc.move(away);
-								rc.setIndicatorString(1, "moving away from the enemies!");
-								curState = 3;
-								break;
-							}
 						}
 					}
 				}
@@ -1322,14 +1253,14 @@ public class RobotPlayer {
 				// move towards enemy miner, since there are no attacking enemies
 				for (RobotInfo miner : enemyMiners) {
 					Direction toMiner = getMoveDir(miner.location);
-					if (rc.isCoreReady() && safeDistance(toMiner, curLoc) && toMiner != null) {
+					if (rc.isCoreReady() && safeDistance(toMiner, curLoc)) {
 						rc.move(toMiner);
 						rc.setIndicatorString(1, "moving towards a miner since no bad guys are around");
 						curState = 3;
 						break;	// exit for loop
 					}
 				}
-			}
+			} 
 //			else if (enemyMiners.size() > 0 && attackingEnemies.size() > 0) {
 //				// there are enemeies nearby.  check to see if we can move towards miner without going in range of enemies
 //				for (RobotInfo miner : enemyMiners) {
@@ -1348,14 +1279,14 @@ public class RobotPlayer {
 //					}
 //				}
 //			}
-
+			
 			// There are currently 2 harass beaver/miner scenarios:
 			//	(1) Beaver/miner in sight, out of range
 			//		-> Move towards beaver/miner
 			//	(2) Beaver/miner in sight, in range
 			//		-> Attack beaver/miner
-
-//
+			
+//			
 //			if (!isSafe) {	//There's an enemy robot nearby.  Do something and attack!
 ////				if (rc.isWeaponReady() && enemiesInRange.size() != 0) {
 //				if (rc.isWeaponReady()) {
@@ -1484,7 +1415,7 @@ public class RobotPlayer {
 					}
 				}
 				break;
-
+				
 			case 3:	// skips above states
 				curState = 0;
 				break;
@@ -1851,18 +1782,13 @@ public class RobotPlayer {
 
 		public void execute() throws GameActionException {
 			RobotInfo[] enemies = rc.senseNearbyRobots(RobotType.TOWER.sensorRadiusSquared, this.theirTeam);
-			MapLocation curLoc = rc.getLocation();
-
 			if (enemies.length != 0){
-				//RobotInfo closestEnemy = closestEnemy(enemies, myHQ);
-				rc.broadcast(RALLY_X, curLoc.x);
-				rc.broadcast(RALLY_Y, curLoc.y);
+				RobotInfo closestEnemy = closestEnemy(enemies, myHQ);
+				rc.broadcast(RALLY_X, closestEnemy.location.x);
+				rc.broadcast(RALLY_Y, closestEnemy.location.y);
 				if (rc.isWeaponReady()) {
 					attackLeastHealthEnemy(getEnemiesInAttackingRange(RobotType.TOWER));
 				}
-			} else if (rc.readBroadcast(RALLY_X) == curLoc.x && rc.readBroadcast(RALLY_Y) == curLoc.y) {
-				rc.broadcast(RALLY_X, 0);
-				rc.broadcast(RALLY_Y, 0);
 			}
 
 			rc.yield();
