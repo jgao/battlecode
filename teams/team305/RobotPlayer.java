@@ -179,9 +179,10 @@ public class RobotPlayer {
 			}
 			return null;
 		}
-		
+
 		public Boolean safeDistance(Direction d, MapLocation curLoc) throws GameActionException {
 			boolean safe = true;
+			if (d == null) return true;
 			for (MapLocation tower : theirTowers){
 				if ((curLoc.add(d)).distanceSquaredTo(tower) <= RobotType.TOWER.attackRadiusSquared) {
 					safe = false;
@@ -517,6 +518,7 @@ public class RobotPlayer {
 	final static protected int CENTROID_DIVISOR = 9999; //A counter that's used for computing centroids of subgroups
 	final static protected int NUM_SUBGROUPS = 10000; //Number of subgroups. Beginning of subgroup stack
 	final static protected int CUR_SUBGROUP = 10001;
+	final static protected int DISTRESS_CALL = 50000; //0 for normal, else tower index, -1 for HQ distress
 
 
 
@@ -967,7 +969,7 @@ public class RobotPlayer {
 				curState = 2;
 				stateChanged=true;
 			}
-			
+
 			//Testing
 			rc.setIndicatorString(0, "curMiner: "+curMiner);
 			rc.setIndicatorString(1, "curState: "+curState);
@@ -1170,7 +1172,7 @@ public class RobotPlayer {
 			MapLocation curLoc = rc.getLocation();
 			Boolean stateChanged = false;
 //			Boolean isSafe = true;
-			
+
 			RobotInfo[] robots = rc.senseNearbyRobots(RobotType.SOLDIER.sensorRadiusSquared);	//This is an EXPENSIVE method (100 bytecode)
 			List<RobotInfo> enemies = new ArrayList<RobotInfo>();			// enemy robots in range
 			List<RobotInfo> enemiesInRange = new ArrayList<RobotInfo>();	// enemy robots in attack range
@@ -1210,7 +1212,7 @@ public class RobotPlayer {
 			//		-> Attack, don't move
 			//	(4) Attacking enemy in sight, in range, WITHOUT friendly robots nearby
 			//		-> Attack, don't move
-			
+
 			if (attackingEnemies.size() > 0 && attackingEnemiesInRange.size() == 0) {
 				if (maHomeDogs.size() > attackingEnemies.size()+1) {
 					// move towards enemy with your "home-dogs"
@@ -1260,7 +1262,7 @@ public class RobotPlayer {
 						break;	// exit for loop
 					}
 				}
-			} 
+			}
 //			else if (enemyMiners.size() > 0 && attackingEnemies.size() > 0) {
 //				// there are enemeies nearby.  check to see if we can move towards miner without going in range of enemies
 //				for (RobotInfo miner : enemyMiners) {
@@ -1279,14 +1281,14 @@ public class RobotPlayer {
 //					}
 //				}
 //			}
-			
+
 			// There are currently 2 harass beaver/miner scenarios:
 			//	(1) Beaver/miner in sight, out of range
 			//		-> Move towards beaver/miner
 			//	(2) Beaver/miner in sight, in range
 			//		-> Attack beaver/miner
-			
-//			
+
+//
 //			if (!isSafe) {	//There's an enemy robot nearby.  Do something and attack!
 ////				if (rc.isWeaponReady() && enemiesInRange.size() != 0) {
 //				if (rc.isWeaponReady()) {
@@ -1415,7 +1417,7 @@ public class RobotPlayer {
 					}
 				}
 				break;
-				
+
 			case 3:	// skips above states
 				curState = 0;
 				break;
